@@ -34,6 +34,7 @@ function persist(next) {
         token: null,
         userId: next.userId,
         name: next.name,
+        nickname: next.nickname || '',
         avatar: next.avatar || '',
         gender: next.gender,
         account: next.account || '',

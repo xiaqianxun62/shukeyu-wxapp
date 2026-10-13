@@ -29,6 +29,8 @@ const schemeId = ref(0)
 const scoreVisible = ref(false)
 const scoring = ref(false)
 const scoreForm = ref({ matchId: 0, scoreA: '', scoreB: '' })
+/** 当前弹层对阵的计分信息：裁判与改分历史（来自 matches 接口的 refereeName / scoreLogs） */
+const scoreAudit = ref({ refereeName: '', logs: [] })
 /** 轮排统计：局内得分排名（已编排的球局才有） */
 const rotationStats = ref([])
 
@@ -356,7 +358,26 @@ function openScore(match) {
     scoreA: match.winner ? String(match.scoreA) : '',
     scoreB: match.winner ? String(match.scoreB) : '',
   }
+  scoreAudit.value = {
+    refereeName: match.refereeName || '',
+    logs: match.scoreLogs || [],
+  }
   scoreVisible.value = true
+}
+
+/** 计分日志时间展示：2026-01-01T12:30:00 → 01-01 12:30 */
+function formatLogTime(time) {
+  if (!time) return ''
+  const s = String(time).replace('T', ' ')
+  return s.length >= 16 ? s.slice(5, 16) : s
+}
+
+/** 单条计分日志文案：首次录入 / 改分（含改前比分） */
+function logText(log) {
+  if (log.action === 2 && log.prevScoreA != null) {
+    return `改分 ${log.prevScoreA} : ${log.prevScoreB} → ${log.scoreA} : ${log.scoreB}`
+  }
+  return `录入 ${log.scoreA} : ${log.scoreB}`
 }
 
 function closeScore() {
@@ -644,7 +665,7 @@ function sidePlayers(team, names) {
                   <view class="rr-match-sides">
                     <view class="rr-match-side">
                       <view
-                        v-for="(p, pi) in sidePlayers(m.teamA, m.teamANames)"
+                        v-for="(p, pi) in sidePlayers(m.teamA, m.teamANames)
                         :key="`a-${p.userId}`"
                         class="rr-player"
                       >
@@ -677,6 +698,10 @@ function sidePlayers(team, names) {
                         <text class="rr-player-name">{{ p.name }}</text>
                       </view>
                     </view>
+                  </view>
+                  <view v-if="m.refereeName" class="rr-match-referee">
+                    <text>裁判 · {{ m.refereeName }}</text>
+                    <text v-if="(m.scoreLogs || []).length > 1" class="rr-referee-edited">已改分</text>
                   </view>
                 </view>
               </view>
@@ -782,6 +807,18 @@ function sidePlayers(team, names) {
           <text class="score-side">B 队</text>
         </view>
         <view class="score-tip">胜方按比分自动判定，例如 21 : 15</view>
+        <!-- 计分留痕：谁当裁判、计了多少分、谁后面又改了 -->
+        <view v-if="scoreAudit.refereeName" class="score-audit">
+          <view class="score-audit-title">
+            <text>裁判 · {{ scoreAudit.refereeName }}</text>
+            <text v-if="scoreAudit.logs.length > 1" class="score-audit-badge">已改分 {{ scoreAudit.logs.length - 1 }} 次</text>
+          </view>
+          <view v-for="(log, li) in scoreAudit.logs" :key="li" class="score-audit-row">
+            <text class="score-audit-who">{{ log.operatorName }}</text>
+            <text class="score-audit-text">{{ logText(log) }}</text>
+            <text class="score-audit-time">{{ formatLogTime(log.time) }}</text>
+          </view>
+        </view>
         <button class="btn primary picker-go" type="button" :loading="scoring" @click="submitScore">
           保存比分
         </button>
@@ -1477,6 +1514,67 @@ function sidePlayers(team, names) {
   text-align: center;
   font-size: 11px;
   color: #5a726d;
+}
+/* 计分留痕：裁判与改分历史 */
+.score-audit {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e3e8e6;
+  border-radius: 10px;
+  background: #f7faf8;
+}
+.score-audit-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: #14665b;
+  margin-bottom: 6px;
+}
+.score-audit-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #8a6d1a;
+  background: #f6ecc9; border-radius: 8px;
+  padding: 1px 8px;
+}
+.score-audit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #5a726d;
+  padding: 3px 0;
+}
+.score-audit-who {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: #1a2e2a;
+}
+.score-audit-text {
+  flex: 1;
+  min-width: 0;
+}
+.score-audit-time {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #9aa8a4;
+}
+.rr-match-referee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #5a726d;
+}
+.rr-referee-edited {
+  font-size: 10px;
+  color: #8a6d1a;
+  background: #f6ecc9;
+  border-radius: 8px;
+  padding: 0 6px;
 }
 .rank-table {
   width: 100%;

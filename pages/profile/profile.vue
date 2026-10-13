@@ -11,6 +11,7 @@ const { user, isLoggedIn, applyProfile, restore, refreshMe } = useAuth()
 
 const form = ref({
   name: '',
+  nickname: '',
   gender: 0,
   account: '',
   avatar: '',
@@ -23,6 +24,7 @@ function fillFromUser() {
   if (!user.value) return
   form.value = {
     name: user.value.name || '',
+    nickname: user.value.nickname || '',
     gender: user.value.gender || 0,
     account: user.value.account || '',
     // 保留刚上传的头像：避免 watch 触发时覆盖 onAvatarCropped 设置的 URL
@@ -123,6 +125,8 @@ async function save() {
   try {
     const updated = await updateProfile({
       name,
+      // 昵称：空串=清除，后端不传(null)才是不修改；积分榜优先展示昵称
+      nickname: form.value.nickname.trim(),
       gender: Number(form.value.gender),
       account: form.value.account.trim(),
       avatar: form.value.avatar,
@@ -154,6 +158,12 @@ function goLogin() {
       <view class="field">
         <text class="label">姓名</text>
         <uni-easyinput v-model="form.name" placeholder="填写真实姓名，便于球友辨认" />
+      </view>
+
+      <view class="field">
+        <text class="label">昵称</text>
+        <uni-easyinput v-model="form.nickname" placeholder="积分榜等场景展示，可留空" />
+        <text class="hint">积分榜优先显示昵称；不填则显示姓名</text>
       </view>
 
       <view class="field">
