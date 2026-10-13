@@ -470,8 +470,8 @@ async function onJoin(game) {
       </view>
 
       <!-- 精选大卡 -->
-      <view v-if="featured" :class="['gcard', 'card-' + featured.id]" @click="goDetail(featured.id)">
-        <view class="pic" hover-class="pic-hv" hover-stay-time="120">
+      <view v-if="featured" :class="['gcard', 'card-' + featured.id]">
+        <view class="pic" hover-class="pic-hv" hover-stay-time="120" @click="toggleExpand(featured.id)">
           <image
             v-if="featured.cover"
             class="pic-cover"
@@ -575,7 +575,6 @@ async function onJoin(game) {
         v-for="game in rest"
         :key="game.id"
         :class="['ccard', 'card-' + game.id]"
-        @click="goDetail(game.id)"
       >
         <view class="date">
           <template v-if="game.mode === 1">
@@ -593,7 +592,7 @@ async function onJoin(game) {
             <text class="w">{{ weekdayText(game.playDate) }}</text>
           </template>
         </view>
-        <view class="mid" hover-class="mid-hv" hover-stay-time="120">
+        <view class="mid" hover-class="mid-hv" hover-stay-time="120" @click.stop="toggleExpand(game.id)">
           <view class="ttl2">
             <text class="t">{{ game.title }}</text>
             <text :class="['badge', statusClass(game.status)]">{{ statusText(game.status) }}</text>
