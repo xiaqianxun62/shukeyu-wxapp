@@ -23,15 +23,52 @@ const players = ref([])
 const courts = ref(2)
 const rounds = ref(6)
 const format = ref(2) // 1 单打 2 双打
-/** 双打怎么配队：0 不分性别 1 男双 2 女双 3 混双 4 男女分场（男双+女双同时进行） */
-const genderRule = ref(0)
-const genderRules = [
-  { value: 0, label: '不分性别' },
-  { value: 3, label: '混双（一男一女）' },
-  { value: 1, label: '男双' },
-  { value: 2, label: '女双' },
-  { value: 4, label: '男女分场' },
+/**
+ * 双打时本轮允许开哪几种场地（可多选）。
+ * mixed 混双场(2男2女) / men 男双场(4男) / women 女双场(4女) / any 不限性别场(4人任意)。
+ * 例：勾「男双 + 混双」= 男双场打男双、混双场打混双，两种场地并行。
+ */
+const courtTypes = ref(['any'])
+const courtTypeOptions = [
+  { value: 'mixed', label: '混双' },
+  { value: 'men', label: '男双' },
+  { value: 'women', label: '女双' },
+  { value: 'any', label: '不限性别' },
 ]
+
+/** 快捷组合：等价于一次性勾选若干种场地 */
+const courtTypePresets = [
+  { label: '仅混双', types: ['mixed'] },
+  { label: '男双+混双', types: ['men', 'mixed'] },
+  { label: '女双+混双', types: ['women', 'mixed'] },
+  { label: '男女分场', types: ['men', 'women'] },
+  { label: '三场并行', types: ['mixed', 'men', 'women'] },
+]
+
+/**
+ * 快速名单能不能按性别编排：不能。
+ * 那一栏的球员是自动生成的占位数据，gender 全为空，勾「男双 / 女双 / 混双」
+ * 必然凑不齐人。所以这个模式下只放开「不限性别」，其余置灰不可点。
+ */
+const canPickGenderCourt = computed(() => mode.value === 'game')
+
+function toggleCourtType(value) {
+  if (!canPickGenderCourt.value && value !== 'any') return
+  const i = courtTypes.value.indexOf(value)
+  if (i >= 0) {
+    // 至少要留一种，否则一片场地都开不出来
+    if (courtTypes.value.length === 1) return
+    courtTypes.value.splice(i, 1)
+  } else {
+    courtTypes.value = [...courtTypes.value, value]
+  }
+}
+
+function applyPreset(types) {
+  // 快捷组合全都含性别场地，快速名单下直接忽略
+  if (!canPickGenderCourt.value) return
+  courtTypes.value = [...types]
+}
 const balance = ref(true)
 
 const result = ref(null)
@@ -58,12 +95,119 @@ const logForm = ref({ round: 0, court: 0 })
 const logRows = ref([])
 
 const perMatch = computed(() => (format.value === 1 ? 2 : 4))
-const onCourt = computed(() => Math.min(courts.value, Math.floor(peopleCount.value / perMatch.value)) * perMatch.value)
-const restingPerRound = computed(() => Math.max(peopleCount.value - onCourt.value, 0))
 const canGenerate = computed(() =>
   mode.value === 'game' ? games.value.length > 0 : players.value.length >= perMatch.value,
 )
 const selectedGame = computed(() => games.value[gameIndex.value] || null)
+
+/**
+ * 本次参与编排的名单统计：球局模式取该球局的报名名单，快速名单模式取本地球员。
+ * 之所以不用 genderStat（那是从生成结果里数的），是因为「每轮几人上场」这句提示
+ * 在首次生成之前就要显示，而 genderStat 在那之前是 0/0。
+ *
+ * 女数按「总数 − 男数」算，与后端 RotationEngine.plan 的 countGender 完全一致：
+ * 后端把性别未知的球友也算进女池（players.size() - males）。
+ * 若这里只认 gender === 2，快速名单那种 gender 全空的名单会算出女 0 人，
+ * 「不限性别」场地被判定为开不出来，界面显示「每轮 0 人上场」，
+ * 可后端其实能正常编排——提示与实际不符会让人以为功能坏了。
+ */
+const rosterStat = computed(() => {
+  const list = mode.value === 'game'
+    ? (selectedGame.value && selectedGame.value.registrations) || []
+    : players.value
+  let male = 0
+  list.forEach((p) => {
+    if (p && p.gender === 1) male += 1
+  })
+  return { total: list.length, male, female: list.length - male }
+})
+
+/**
+ * 场地配额：与后端 RotationEngine.allocateCourts 必须同一套算法，
+ * 否则「本轮开 N 片」的提示会和实际生成的赛程对不上。
+ *
+ * 两步走：① 勾选的每种类型先各保底 1 片（人不够就跳过），
+ * ② 剩余场地按 混双 → 男双 → 女双 → 不限性别 的优先级轮转补齐。
+ */
+function allocateCourts(want, male, female, maxCourts) {
+  const plan = { mixed: 0, men: 0, women: 0, any: 0 }
+  const order = ['mixed', 'men', 'women', 'any']
+  let left = Math.max(0, maxCourts)
+  let restMale = male
+  let restFemale = female
+
+  // 保底：每种选中的类型各开 1 片
+  order.forEach((type) => {
+    if (left <= 0 || !want.includes(type)) return
+    if (type === 'mixed' && restMale >= 2 && restFemale >= 2) {
+      plan.mixed++; left--; restMale -= 2; restFemale -= 2
+    } else if (type === 'men' && restMale >= 4) {
+      plan.men++; left--; restMale -= 4
+    } else if (type === 'women' && restFemale >= 4) {
+      plan.women++; left--; restFemale -= 4
+    }
+    // any 不参与保底：它是收剩饭的兜底类型，不该抢专属场地的名额
+  })
+
+  // 补齐：按优先级轮转，谁还能开就谁开
+  let progress = true
+  while (left > 0 && progress) {
+    progress = false
+    for (let i = 0; i < order.length && left > 0; i++) {
+      const type = order[i]
+      if (!want.includes(type)) continue
+      if (type === 'mixed' && restMale >= 2 && restFemale >= 2) {
+        plan.mixed++; left--; restMale -= 2; restFemale -= 2; progress = true
+      } else if (type === 'men' && restMale >= 4) {
+        plan.men++; left--; restMale -= 4; progress = true
+      } else if (type === 'women' && restFemale >= 4) {
+        plan.women++; left--; restFemale -= 4; progress = true
+      } else if (type === 'any' && restMale + restFemale >= 4) {
+        plan.any++; left--
+        const fromMale = Math.min(4, restMale)
+        restMale -= fromMale
+        restFemale -= 4 - fromMale
+        progress = true
+      }
+    }
+  }
+  return plan
+}
+
+/**
+ * 每轮能同时开打几片场地：先按「场地数 + 总人数」取上限，再按勾选的场地类型往下压。
+ * 单打时没有场地类型之分。
+ */
+const matchPerRound = computed(() => {
+  const base = Math.min(courts.value, Math.floor(rosterStat.value.total / perMatch.value))
+  if (perMatch.value !== 4) return base
+  const p = allocateCourts(courtTypes.value, rosterStat.value.male, rosterStat.value.female, base)
+  return p.mixed + p.men + p.women + p.any
+})
+
+const onCourt = computed(() => matchPerRound.value * perMatch.value)
+const restingPerRound = computed(() => Math.max(rosterStat.value.total - onCourt.value, 0))
+
+/** 把配额翻成「2 片混双 + 1 片男双」这样的说明 */
+function describePlan(plan) {
+  const labels = { mixed: '片混双', men: '片男双', women: '片女双', any: '片不限性别' }
+  const parts = ['mixed', 'men', 'women', 'any']
+    .filter((k) => plan[k] > 0)
+    .map((k) => `${plan[k]} ${labels[k]}`)
+  return parts.join(' + ')
+}
+
+/** 提示文案：这一轮会开几片、分别是什么场地、谁会休息 */
+const courtTypesHint = computed(() => {
+  if (perMatch.value !== 4) return '单打不区分场地类型'
+  const base = Math.min(courts.value, Math.floor(rosterStat.value.total / 4))
+  const plan = allocateCourts(courtTypes.value, rosterStat.value.male, rosterStat.value.female, base)
+  const total = plan.mixed + plan.men + plan.women + plan.any
+  if (total <= 0) return '按当前勾选，凑不出一片场地（人数不够）'
+  const idle = courts.value - total
+  const tail = idle > 0 ? `，${idle} 片场地空着` : ''
+  return `本轮开 ${total} 片（${describePlan(plan)}）${tail}`
+})
 /** 报名男女统计：小程序端直接按轮排名单里的性别字段算，不依赖后端接口 */
 const genderStat = computed(() => {
   const list = (result.value && result.value.players) || []
@@ -157,7 +301,9 @@ async function loadSaved() {
       // 回填上次的参数，点「重新生成」时沿用同样的场地 / 轮数 / 赛制
       courts.value = saved.courts
       rounds.value = saved.rounds
-      format.value = saved.format
+      // 后端只应返回 1 单打 / 2 双打；兜底成 2，
+      // 免得异常值让两个选项都不亮、看起来像「没选赛制」
+      format.value = saved.format === 1 ? 1 : 2
     }
   } catch (e) {
     result.value = null
@@ -174,6 +320,9 @@ function switchMode(next) {
   if (next === 'game') {
     loadSaved()
   } else {
+    // 快速名单没有性别信息，把从真实球局带过来的场地类型重置回「不限性别」，
+    // 否则会带着「男双场」进来，而那一栏的人根本凑不齐
+    courtTypes.value = ['any']
     result.value = null
   }
 }
@@ -197,7 +346,7 @@ async function generate() {
       courts: Number(courts.value),
       rounds: Number(rounds.value),
       format: Number(format.value),
-      genderRule: Number(genderRule.value),
+      courtTypes: [...courtTypes.value],
       balanceStrength: balance.value,
       players: players.value,
     }
@@ -405,7 +554,7 @@ async function submitScore() {
         </view>
         <view class="row">
           <text class="label">轮数</text>
-          <uni-number-box v-model="rounds" :min="1" :max="20" />
+          <uni-number-box v-model="rounds" :min="1" :max="30" />
         </view>
         <view class="row">
           <text class="label">赛制</text>
@@ -415,20 +564,33 @@ async function submitScore() {
           </view>
         </view>
         <view v-if="format === 2" class="field">
-          <text class="label">性别规则</text>
+          <text class="label">{{ canPickGenderCourt ? '场地类型（可多选）' : '场地类型' }}</text>
           <view class="chips">
             <view
-              v-for="g in genderRules"
-              :key="g.value"
-              :class="['chip', { active: genderRule === g.value }]"
-              @click="genderRule = g.value"
+              v-for="t in courtTypeOptions"
+              :key="t.value"
+              :class="['chip', { active: courtTypes.includes(t.value), disabled: !canPickGenderCourt && t.value !== 'any' }]"
+              @click="toggleCourtType(t.value)"
             >
-              {{ g.label }}
+              {{ t.label }}
             </view>
           </view>
-          <text v-if="mode === 'quick' && genderRule !== 0" class="hint">
-            快速名单没有性别信息，性别规则请在「真实球局」模式下使用
+          <view v-if="canPickGenderCourt" class="chips">
+            <text class="preset-label">快捷</text>
+            <view
+              v-for="p in courtTypePresets"
+              :key="p.label"
+              class="chip ghost"
+              @click="applyPreset(p.types)"
+            >
+              {{ p.label }}
+            </view>
+          </view>
+          <text v-if="mode === 'quick'" class="hint">
+            快速名单只作试算，没有性别信息，因此只能排「不限性别」场。
+            需要按男女分场，请切到「真实球局」模式。
           </text>
+          <text v-else class="hint">{{ courtTypesHint }}</text>
         </view>
         <view class="row">
           <text class="label">按 ELO 均衡实力</text>
@@ -708,6 +870,22 @@ async function submitScore() {
   border-color: #14665b;
   color: #faf7f0;
   font-weight: 700;
+}
+/* 当前模式用不上的选项：置灰且不响应点击（快速名单下的男双 / 女双 / 混双） */
+.chip.disabled {
+  opacity: 0.35;
+  color: #9aa8a4;
+}
+/* 快捷组合：弱化样式，避免和「可多选」的主选项抢视觉焦点 */
+.chip.ghost {
+  border-style: dashed;
+  background: #ffffff;
+}
+.preset-label {
+  align-self: center;
+  padding: 0 4px 0 0;
+  font-size: 10px;
+  color: #9aa8a4;
 }
 .court-elo {
   margin-top: 2px;
