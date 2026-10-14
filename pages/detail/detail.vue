@@ -145,6 +145,148 @@ const roundGroups = computed(() => {
   return groups
 })
 
+/* ---------- 轮排结果筛选（右下角圆形按钮） ---------- */
+/** 对局状态筛选项（可多选，多选=命中任一即可） */
+const STATUS_FILTERS = [
+  { value: 'done', label: '已打完' },
+  { value: 'pending', label: '未打' },
+]
+/** 圆形按钮是否已向左展开成操作条（宽度动画，高度不变） */
+const fabExpanded = ref(false)
+/** 已选状态：空数组=不限 */
+const filterStatuses = ref([])
+/** 已选角色（参与用户）userId：空数组=不限 */
+const filterUsers = ref([])
+/** 上拉框：null=关闭 'role'=选角色 'status'=选对局状态 */
+const optionSheet = ref(null)
+
+/** 当前筛选项的展示文案，回显在展开后的按钮上 */
+const roleLabel = computed(() => {
+  if (!filterUsers.value.length) return '全部'
+  if (filterUsers.value.length === 1) {
+    const p = resultPlayers.value.find((x) => x.userId === filterUsers.value[0])
+    return p ? p.name : '全部'
+  }
+  return `${filterUsers.value.length} 人`
+})
+const statusLabel = computed(() => {
+  if (!filterStatuses.value.length) return '全部'
+  if (filterStatuses.value.length === 1) {
+    const s = STATUS_FILTERS.find((x) => x.value === filterStatuses.value[0])
+    return s ? s.label : '全部'
+  }
+  return '已打完 / 未打'
+})
+/** 弹层选项：按当前打开的筛选维度给出，首项「全部」用于清空该维度 */
+const sheetOptions = computed(() =>
+  optionSheet.value === 'role'
+    ? [
+        { value: 0, label: '全部', avatar: '' },
+        ...resultPlayers.value.map((p) => ({ value: p.userId, label: p.name, avatar: p.avatar })),
+      ]
+    : [{ value: 'all', label: '全部' }, ...STATUS_FILTERS.map((s) => ({ value: s.value, label: s.label }))],
+)
+/** 某一项是否已被勾选（多选） */
+function isOptionChecked(opt) {
+  if (optionSheet.value === 'role') {
+    return opt.value === 0 ? filterUsers.value.length === 0 : filterUsers.value.includes(opt.value)
+  }
+  return opt.value === 'all' ? filterStatuses.value.length === 0 : filterStatuses.value.includes(opt.value)
+}
+
+/** 本球局轮排里出现过的全部球员（含头像），供筛选面板点选 */
+const resultPlayers = computed(() => {
+  const seen = new Map()
+  const flat = (matches.value && matches.value.matches) || []
+  flat.forEach((m) => {
+    const sides = [...sidePlayers(m.teamA, m.teamANames), ...sidePlayers(m.teamB, m.teamBNames)]
+    sides.forEach((p) => {
+      if (p.userId != null && !seen.has(p.userId)) {
+        seen.set(p.userId, {
+          userId: p.userId,
+          name: p.name || `球友${p.userId}`,
+          avatar: p.avatar || '',
+        })
+      }
+    })
+  })
+  return [...seen.values()]
+})
+
+/** 已生效的筛选项数量，用于在圆形按钮上角标提示 */
+const filterCount = computed(() => (filterStatuses.value.length ? 1 : 0) + (filterUsers.value.length ? 1 : 0))
+
+/**
+ * 单场对阵是否命中当前筛选条件。
+ * 同一维度内多选是「或」：命中任一项即可；维度之间是「且」：既要符合角色又要符合状态。
+ */
+function matchFilter(m) {
+  if (filterStatuses.value.length) {
+    const done = !!m.winner
+    if (!filterStatuses.value.some((s) => (s === 'done' ? done : !done))) return false
+  }
+  if (filterUsers.value.length) {
+    const ids = [...(m.teamA || []), ...(m.teamB || [])]
+    if (!filterUsers.value.some((u) => ids.includes(u))) return false
+  }
+  return true
+}
+
+/** 筛选后的轮次分组：整轮都被筛掉时不再显示该轮 */
+const filteredRoundGroups = computed(() => {
+  if (!filterCount.value) return roundGroups.value
+  return roundGroups.value
+    .map((rg) => ({ ...rg, matches: rg.matches.filter(matchFilter) }))
+    .filter((rg) => rg.matches.length)
+})
+
+/** 点圆形按钮：展开 / 收起；展开后高度不变，宽度向左平滑拉开 */
+function toggleFab() {
+  fabExpanded.value = !fabExpanded.value
+  // 收起按钮条时，上面挂着的筛选面板也要一起收掉
+  if (!fabExpanded.value) optionSheet.value = null
+}
+function collapseFab() {
+  fabExpanded.value = false
+  optionSheet.value = null
+}
+
+function openOptionSheet(type) {
+  optionSheet.value = type
+}
+function closeOptionSheet() {
+  optionSheet.value = null
+}
+/** 上拉框里点一项：多选切换选中态（点「全部」= 清空本维度） */
+function pickOption(value) {
+  if (optionSheet.value === 'role') {
+    if (value === 0) {
+      filterUsers.value = []
+      return
+    }
+    const i = filterUsers.value.indexOf(value)
+    if (i >= 0) filterUsers.value.splice(i, 1)
+    else filterUsers.value.push(value)
+  } else {
+    if (value === 'all') {
+      filterStatuses.value = []
+      return
+    }
+    const i = filterStatuses.value.indexOf(value)
+    if (i >= 0) filterStatuses.value.splice(i, 1)
+    else filterStatuses.value.push(value)
+  }
+}
+/** 清空当前打开的那个筛选维度 */
+function clearCurrentFilter() {
+  if (optionSheet.value === 'role') filterUsers.value = []
+  else filterStatuses.value = []
+}
+function resetFilter() {
+  filterStatuses.value = []
+  filterUsers.value = []
+}
+
 function eloDeltaText(value) {
   const n = value || 0
   return n > 0 ? `+${n}` : `${n}`
@@ -223,6 +365,11 @@ function onTabClick(tab) {
     }
     navigateTo(`/pages/rotation/rotation?gameId=${gameId.value}`)
     return
+  }
+  // 离开「轮排结果」时按钮条与筛选面板一并收起，避免面板悬空留在别的页签
+  if (tab !== '轮排结果') {
+    fabExpanded.value = false
+    optionSheet.value = null
   }
   activeTab.value = tab
 }
@@ -654,8 +801,9 @@ function sidePlayers(team, names) {
             <text v-if="matches" class="rr-badge">{{ matches.finishedCount }} / {{ matches.totalCount }} 场已打完</text>
           </view>
           <view v-if="!matches || !matches.matches.length" class="panel-empty">还没有编排结果</view>
+          <view v-else-if="!filteredRoundGroups.length" class="panel-empty">没有符合筛选条件的对局</view>
           <template v-else>
-            <view v-for="rg in roundGroups" :key="rg.round" class="rr-round">
+            <view v-for="rg in filteredRoundGroups" :key="rg.round" class="rr-round">
               <view class="rr-round-head">
                 <text class="rr-round-no">第 {{ rg.round }} 轮</text>
               </view>
@@ -844,6 +992,68 @@ function sidePlayers(team, names) {
         <button class="btn primary picker-go" type="button" :loading="scoring" @click="submitScore">
           保存比分
         </button>
+      </view>
+    </view>
+
+    <!-- 轮排结果筛选：圆形按钮点一下向左展开成条，再点「角色 / 状态」上拉选择 -->
+    <view
+      v-if="activeTab === '轮排结果' && matches && matches.matches.length"
+      :class="['fab', { expand: fabExpanded }]"
+      @click="toggleFab"
+    >
+      <uni-icons v-if="!fabExpanded" type="search" size="20" color="#faf7f0" />
+      <view v-if="filterCount && !fabExpanded" class="fab-badge">{{ filterCount }}</view>
+      <template v-if="fabExpanded">
+        <view class="fab-item" @click.stop="openOptionSheet('role')">
+          <text class="fab-item-label">角色</text>
+          <text class="fab-item-value">{{ roleLabel }}</text>
+        </view>
+        <view class="fab-item" @click.stop="openOptionSheet('status')">
+          <text class="fab-item-label">状态</text>
+          <text class="fab-item-value">{{ statusLabel }}</text>
+        </view>
+        <view class="fab-item ghost" @click.stop="resetFilter">重置</view>
+        <view class="fab-close" @click.stop="collapseFab">✕</view>
+      </template>
+    </view>
+
+    <!-- 筛选面板：从按钮条上方（角色按钮所在位置）向上展开 -->
+    <view v-if="optionSheet && activeTab === '轮排结果'" class="panel-mask" @click="closeOptionSheet">
+      <view :class="['filter-panel', optionSheet === 'role' ? 'panel-role' : 'panel-status']" @click.stop>
+        <view class="panel-head">
+          <text class="panel-title">{{ optionSheet === 'role' ? '角色（可多选）' : '对局状态（可多选）' }}</text>
+          <text class="panel-clear" @click="clearCurrentFilter">清空</text>
+        </view>
+
+        <!-- 角色：头像 + 名字 -->
+        <scroll-view v-if="optionSheet === 'role'" scroll-y class="panel-list">
+          <view
+            v-for="opt in sheetOptions"
+            :key="opt.value"
+            :class="['role-row', { active: isOptionChecked(opt) }]"
+            @click="pickOption(opt.value)"
+          >
+            <SmartImage v-if="opt.avatar" class="role-avatar-img" :src="opt.avatar" mode="aspectFill" />
+            <view v-else :class="['role-avatar', { none: opt.value === 0 }]" :style="opt.value === 0 ? {} : { background: colorOf(opt.value) }">
+              {{ opt.value === 0 ? '全' : opt.label.charAt(0) }}
+            </view>
+            <text class="role-name">{{ opt.label }}</text>
+            <text v-if="isOptionChecked(opt)" class="role-check">✓</text>
+          </view>
+        </scroll-view>
+
+        <!-- 对局状态：文字选项 -->
+        <scroll-view v-else scroll-y class="panel-list">
+          <view
+            v-for="opt in sheetOptions"
+            :key="opt.value"
+            :class="['status-row', { active: isOptionChecked(opt) }]"
+            @click="pickOption(opt.value)"
+          >
+            <text class="status-name">{{ opt.label }}</text>
+            <text v-if="isOptionChecked(opt)" class="role-check">✓</text>
+          </view>
+        </scroll-view>
       </view>
     </view>
 
@@ -1615,6 +1825,193 @@ function sidePlayers(team, names) {
   background: #f6ecc9;
   border-radius: 8px;
   padding: 0 6px;
+}
+/* 轮排结果筛选：圆形按钮 → 向左平滑拓宽成操作条（高度不变） */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  height: 52px;
+  width: 52px;
+  padding: 0;
+  border-radius: 26px;
+  background: #14665b;
+  box-shadow: 0 4px 14px rgba(20, 102, 91, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 90;
+  transition: width 0.3s ease, padding 0.3s ease;
+}
+.fab.expand {
+  width: calc(100vw - 40px);
+  padding: 0 8px 0 14px;
+  justify-content: flex-start;
+}
+.fab-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #e5c84b;
+  color: #1a2e2a;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.fab-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-right: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+.fab-item.ghost {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.fab-item-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #faf7f0;
+}
+.fab-item-value {
+  max-width: 76px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: #faf7f0;
+}
+.fab-close {
+  margin-left: auto;
+  padding: 6px 10px;
+  font-size: 14px;
+  color: #faf7f0;
+}
+/* 筛选面板：锚在按钮条正上方（角色按钮位置），从下往上展开 */
+.panel-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+.filter-panel {
+  position: fixed;
+  left: 20px;
+  bottom: calc(146px + env(safe-area-inset-bottom));
+  width: 260px;
+  max-width: calc(100vw - 40px);
+  max-height: 54vh;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(20, 51, 45, 0.2);
+  box-sizing: border-box;
+  z-index: 95;
+  transform-origin: left bottom;
+  animation: panel-up 0.22s ease both;
+}
+@keyframes panel-up {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a2e2a;
+}
+.panel-clear {
+  font-size: 11px;
+  font-weight: 600;
+  color: #14665b;
+}
+.panel-list {
+  max-height: 42vh;
+}
+/* 角色：头像 + 名字 */
+.role-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 6px;
+  border-radius: 8px;
+}
+.role-row.active {
+  background: #e0f1ec;
+}
+.role-avatar {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 26px;
+  text-align: center;
+}
+.role-avatar.none {
+  background: #c9d2cf;
+}
+.role-avatar-img {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.role-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: #1a2e2a;
+}
+.role-row.active .role-name {
+  color: #14665b;
+  font-weight: 700;
+}
+.role-check {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #14665b;
+}
+/* 对局状态：文字选项 */
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 6px;
+  border-bottom: 1px solid #f0efea;
+  font-size: 13px;
+  color: #1a2e2a;
+}
+.status-row.active {
+  color: #14665b;
+  font-weight: 700;
+}
+.status-name {
+  flex: 1;
+  min-width: 0;
 }
 .rr-log-btn {
   margin-left: auto;
