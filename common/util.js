@@ -22,6 +22,8 @@ export function resolveUrl(url) {
 export function thumbUrl(originalUrl) {
   if (!originalUrl) return ''
   if (/^https?:\/\//.test(originalUrl)) return originalUrl
+  // GIF 动图：后端 uploadAvatar 跳过压缩、不生成 _thumb.jpg（保留动画帧），直接用原图
+  if (/\.gif$/i.test(originalUrl)) return originalUrl
   const lastDot = originalUrl.lastIndexOf('.')
   if (lastDot < 0) return originalUrl + '_thumb.jpg'
   return originalUrl.slice(0, lastDot) + '_thumb.jpg'

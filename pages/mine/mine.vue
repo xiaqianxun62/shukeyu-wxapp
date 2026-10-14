@@ -67,6 +67,7 @@ function goRotation() { navigateTo('/pages/rotation/rotation') }
 function goHistory() { navigateTo('/pages/history/history') }
 function goFootwork() { navigateTo('/pages/footwork/footwork') }
 function goVerify() { navigateTo('/pages/verify/verify') }
+function goTournaments() { navigateTo('/pages/tournament-list/tournament-list') }
 
 function openEnvPicker() {
   customUrlInput.value = getCustomUrl()
@@ -139,6 +140,12 @@ function saveCustomUrl() {
       <view class="item" @click="goRotation">
         <uni-icons type="refresh" size="16" color="#14665B" />
         <text class="item-text">轮排安排</text>
+        <text class="arrow">›</text>
+      </view>
+      <view class="item" @click="goTournaments">
+        <uni-icons type="medal" size="16" color="#14665B" />
+        <text class="item-text">大型比赛</text>
+        <text class="item-hint-inline">随机抽签</text>
         <text class="arrow">›</text>
       </view>
       <view class="item" @click="goElo">
@@ -374,7 +381,8 @@ function saveCustomUrl() {
   font-size: 11px;
   color: #5a726d;
 }
-.env-tag {
+.env-tag,
+.item-hint-inline {
   padding: 1px 8px;
   border-radius: 999px;
   background: #e0f1ec;

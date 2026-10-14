@@ -3,7 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app'
 import { GAME_STATUS, cancelRegisterGame, listGames, registerGame } from '../../common/api/game'
 import { getHomePoem } from '../../common/api/settings'
-import { AVATAR_COLORS, resolveUrl, shortDate, shortTime, toastError } from '../../common/util'
+import { AVATAR_COLORS, resolveUrl, shortDate, shortTime, thumbUrl, toastError } from '../../common/util'
 import SmartImage from '../../components/SmartImage/SmartImage.vue'
 import { useAuth } from '../../common/store/auth'
 import { navigateTo, switchTab } from '../../common/nav'
@@ -199,6 +199,24 @@ function creatorName(game) {
 
 function isExpanded(id) {
   return expandedIds.value.indexOf(id) >= 0
+}
+
+/**
+ * 列表封面优先显示后端生成的 _thumb.jpg（800×800 JPEG），
+ * 历史封面（缩略图功能上线前传的）没有 _thumb 文件，加载失败时回退原图。
+ * 这里不预加载原图：列表一次只显示一张大卡，没必要为它多下几 MB。
+ */
+const coverFallback = ref({})
+
+function coverSrc(game) {
+  const cover = game && game.cover
+  if (!cover) return ''
+  return coverFallback.value[game.id] ? resolveUrl(cover) : resolveUrl(thumbUrl(cover))
+}
+
+function onCoverError(game) {
+  if (!game) return
+  coverFallback.value = { ...coverFallback.value, [game.id]: true }
 }
 
 /** 现场报名球局：按 playDate 相对今天显示「今天/昨天/09/xx」 */
@@ -472,11 +490,13 @@ async function onJoin(game) {
       <!-- 精选大卡 -->
       <view v-if="featured" :class="['gcard', 'card-' + featured.id]">
         <view class="pic" hover-class="pic-hv" hover-stay-time="120" @click="toggleExpand(featured.id)">
+          <!-- 列表封面用后端生成的 _thumb.jpg，不预加载原图；历史图片没有缩略图时 404 回退原图 -->
           <image
             v-if="featured.cover"
             class="pic-cover"
-            :src="resolveUrl(featured.cover)"
+            :src="coverSrc(featured)"
             mode="aspectFill"
+            @error="onCoverError(featured)"
           />
           <view class="pic-mask" />
           <view class="timechip">

@@ -3,10 +3,11 @@ import { computed, ref, watch } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { planRotation, planRotationForGame, getRotationForGame } from '../../common/api/rotation'
 import { listGames, getGame, scoreMatch } from '../../common/api/game'
-import { AVATAR_COLORS, genderText, resolveUrl, toastError } from '../../common/util'
+import { AVATAR_COLORS, genderText, toastError } from '../../common/util'
 import { useAuth } from '../../common/store/auth'
 import { navigateTo } from '../../common/nav'
 import NavBack from '../../components/nav-back/nav-back.vue'
+import SmartImage from '../../components/SmartImage/SmartImage.vue'
 
 /**
  * 轮排：人数多于同时上场人数时，按轮安排谁上场、谁休息。
@@ -37,9 +38,10 @@ const result = ref(null)
 const loading = ref(false)
 
 const { isLoggedIn, user } = useAuth()
-/** 真实球局模式：只有发起人能生成轮排表（后端同样校验） */
+/** 真实球局模式：发起人能生成轮排表（管理员有全部权限，后端同样校验） */
 const isGameCreator = computed(
-  () => !!selectedGame.value && !!user.value && selectedGame.value.creatorId === user.value.userId,
+  () => !!selectedGame.value && !!user.value
+    && (selectedGame.value.creatorId === user.value.userId || !!user.value.isAdmin),
 )
 
 /** 现场计分弹层 */
@@ -214,6 +216,17 @@ function namesOf(list) {
   return (list || []).map((p) => p.label).join(' / ')
 }
 
+/**
+ * 场地标题的赛制文案：两队性别构成可能不同（男双 vs 混双），
+ * 只标一个会显示成「混双打混双」，故不同时写成「A vs B」。
+ */
+function formatText(m) {
+  const a = m.teamAFormatName
+  const b = m.teamBFormatName
+  if (a && b && a !== b) return `${a} vs ${b}`
+  return a || b || m.formatName || '双打'
+}
+
 function nameInitial(name) {
   return (name || '球友').charAt(0)
 }
@@ -275,8 +288,11 @@ function formatLogTime(time) {
   return s.length >= 16 ? s.slice(5, 16) : s
 }
 
-/** 单条计分日志文案：首次录入 / 改分（含改前比分） */
+/** 单条计分日志文案：首次录入 / 改分（含改前比分）/ 撤销 */
 function logText(log) {
+  if (log.action === 3) {
+    return `撤销比分 ${log.prevScoreA} : ${log.prevScoreB} → 不计输赢`
+  }
   if (log.action === 2 && log.prevScoreA != null) {
     return `改分 ${log.prevScoreA} : ${log.prevScoreB} → ${log.scoreA} : ${log.scoreB}`
   }
@@ -294,9 +310,22 @@ async function submitScore() {
     uni.showToast({ title: '请输入双方比分', icon: 'none' })
     return
   }
-  if (a === b) {
+  // 0:0 是唯一的相同比分例外：撤销本场（误点救回），不计输赢
+  const isReset = a === 0 && b === 0
+  if (a === b && !isReset) {
     uni.showToast({ title: '比分不能相同', icon: 'none' })
     return
+  }
+  if (isReset) {
+    const ok = await new Promise((resolve) => {
+      uni.showModal({
+        title: '撤销本场比分',
+        content: '本场将回到未计分状态，不计输赢；若已结算过积分，会原路退回。确定吗？',
+        success: (r) => resolve(!!r.confirm),
+        fail: () => resolve(false),
+      })
+    })
+    if (!ok) return
   }
   scoring.value = true
   try {
@@ -309,7 +338,7 @@ async function submitScore() {
       m.winner = res.winner
     }
     uni.showToast({
-      title: res && res.gameFinished ? '比分已录入，球局结束' : '比分已录入',
+      title: isReset ? '本场已撤销，不计输赢' : res && res.gameFinished ? '比分已录入，球局结束' : '比分已录入',
       icon: 'success',
     })
     scoreVisible.value = false
@@ -437,10 +466,10 @@ async function submitScore() {
                   :key="`rest-${r.round}-${p.userId}-${i}`"
                   class="mini-player"
                 >
-                  <image
+                  <SmartImage
                     v-if="playerAvatar(p)"
                     class="mini-avatar-img"
-                    :src="resolveUrl(playerAvatar(p))"
+                    :src="playerAvatar(p)"
                     mode="aspectFill"
                   />
                   <view v-else class="mini-avatar" :style="{ background: colorOf(p.userId) }">{{ nameInitial(p.label) }}</view>
@@ -461,7 +490,7 @@ async function submitScore() {
               @click="openScore(m, r.round)"
             >
               <view class="court-head">
-                <text class="court-no">{{ m.court }} 号场 · {{ m.formatName || '双打' }}</text>
+                <text class="court-no">{{ m.court }} 号场 · {{ formatText(m) }}</text>
                 <text v-if="m.winner" class="court-score">{{ m.scoreA }} : {{ m.scoreB }}</text>
                 <text v-else-if="m.matchId" class="court-score todo">录比分 ›</text>
                 <text v-else class="court-score">试算</text>
@@ -477,10 +506,10 @@ async function submitScore() {
                     :key="`a-${r.round}-${m.court}-${p.userId}-${i}`"
                     class="mini-player"
                   >
-                    <image
+                    <SmartImage
                       v-if="playerAvatar(p)"
                       class="mini-avatar-img"
-                      :src="resolveUrl(playerAvatar(p))"
+                      :src="playerAvatar(p)"
                       mode="aspectFill"
                     />
                     <view v-else class="mini-avatar" :style="{ background: colorOf(p.userId) }">{{ nameInitial(p.label) }}</view>
@@ -494,10 +523,10 @@ async function submitScore() {
                     :key="`b-${r.round}-${m.court}-${p.userId}-${i}`"
                     class="mini-player"
                   >
-                    <image
+                    <SmartImage
                       v-if="playerAvatar(p)"
                       class="mini-avatar-img"
-                      :src="resolveUrl(playerAvatar(p))"
+                      :src="playerAvatar(p)"
                       mode="aspectFill"
                     />
                     <view v-else class="mini-avatar" :style="{ background: colorOf(p.userId) }">{{ nameInitial(p.label) }}</view>
@@ -537,7 +566,7 @@ async function submitScore() {
           <input class="score-input" type="number" v-model="scoreForm.scoreB" placeholder="0" />
           <text class="score-side">B 队</text>
         </view>
-        <view class="score-tip">胜方按比分自动判定，例如 21 : 15</view>
+        <view class="score-tip">胜方按比分自动判定，例如 21 : 15；填 0 : 0 可撤销本场（误点救回）</view>
         <!-- 计分留痕：谁当裁判、计了多少分、谁后面又改了 -->
         <view v-if="scoreAudit.refereeName" class="score-audit">
           <view class="score-audit-title">
@@ -564,6 +593,15 @@ async function submitScore() {
         <scroll-view scroll-y class="log-list">
           <view v-for="(log, li) in logRows" :key="li" class="log-row">
             <view class="log-row-top">
+              <SmartImage
+                v-if="log.operatorAvatar"
+                class="log-avatar-img"
+                :src="log.operatorAvatar"
+                mode="aspectFill"
+              />
+              <view v-else class="log-avatar" :style="{ background: colorOf(log.operatorId) }">
+                {{ log.operatorName ? log.operatorName.charAt(0) : '球' }}
+              </view>
               <text class="log-who">{{ log.operatorName }}</text>
               <text class="log-time">{{ formatLogTime(log.time) }}</text>
             </view>
@@ -1101,7 +1139,27 @@ async function submitScore() {
   align-items: center;
   justify-content: space-between;
 }
+.log-avatar {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 26px;
+  text-align: center;
+  margin-right: 8px;
+}
+.log-avatar-img {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
 .log-who {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 700;
   color: #1a2e2a;

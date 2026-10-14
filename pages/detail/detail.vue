@@ -356,10 +356,10 @@ onShow(() => {
   }
 })
 
-/** 底部 Tab：轮排安排仅发起人可进入，其余在本页切换 */
+/** 底部 Tab：轮排安排仅发起人/管理员可进入，其余在本页切换 */
 function onTabClick(tab) {
   if (tab === '轮排安排') {
-    if (!isCreator.value) {
+    if (!canManage.value) {
       uni.showToast({ title: '轮排安排仅发起人可操作', icon: 'none' })
       return
     }
@@ -516,6 +516,17 @@ function openScore(match) {
   scoreVisible.value = true
 }
 
+/**
+ * 对阵赛制文案：两队性别构成可能不同（如 A 队男双 vs B 队混双），
+ * 只按整场 format 显示会变成「混双打混双」，故不同时写成「男双 vs 混双」。
+ */
+function matchFormatText(m) {
+  const a = m.teamAFormatName
+  const b = m.teamBFormatName
+  if (a && b && a !== b) return `${a} vs ${b}`
+  return a || b || MATCH_FORMAT[m.format] || '双打'
+}
+
 /** 打分记录：比分改动对所有人公开可查，未登录也能看 */
 function openScoreLog(match, round) {
   logForm.value = { round: round || 0, court: match.court || 0 }
@@ -534,8 +545,11 @@ function formatLogTime(time) {
   return s.length >= 16 ? s.slice(5, 16) : s
 }
 
-/** 单条计分日志文案：首次录入 / 改分（含改前比分） */
+/** 单条计分日志文案：首次录入 / 改分（含改前比分）/ 撤销 */
 function logText(log) {
+  if (log.action === 3) {
+    return `撤销比分 ${log.prevScoreA} : ${log.prevScoreB} → 不计输赢`
+  }
   if (log.action === 2 && log.prevScoreA != null) {
     return `改分 ${log.prevScoreA} : ${log.prevScoreB} → ${log.scoreA} : ${log.scoreB}`
   }
@@ -553,15 +567,28 @@ async function submitScore() {
     uni.showToast({ title: '请输入双方比分', icon: 'none' })
     return
   }
-  if (a === b) {
+  // 0:0 是唯一的相同比分例外：撤销本场（误点救回），不计输赢
+  const isReset = a === 0 && b === 0
+  if (a === b && !isReset) {
     uni.showToast({ title: '比分不能相同', icon: 'none' })
     return
+  }
+  if (isReset) {
+    const ok = await new Promise((resolve) => {
+      uni.showModal({
+        title: '撤销本场比分',
+        content: '本场将回到未计分状态，不计输赢；若已结算过积分，会原路退回。确定吗？',
+        success: (r) => resolve(!!r.confirm),
+        fail: () => resolve(false),
+      })
+    })
+    if (!ok) return
   }
   scoring.value = true
   try {
     const res = await scoreMatch(scoreForm.value.matchId, a, b)
     uni.showToast({
-      title: res && res.gameFinished ? '比分已录入，球局结束' : '比分已录入',
+      title: isReset ? '本场已撤销，不计输赢' : res && res.gameFinished ? '比分已录入，球局结束' : '比分已录入',
       icon: 'success',
     })
     scoreVisible.value = false
@@ -817,7 +844,7 @@ function sidePlayers(team, names) {
                   @click="openScore(m)"
                 >
                   <view class="rr-match-top">
-                    <text class="rr-match-type">{{ MATCH_FORMAT[m.format] || '双打' }} · {{ m.court }} 号场</text>
+                    <text class="rr-match-type">{{ matchFormatText(m) }} · {{ m.court }} 号场</text>
                     <text v-if="m.winner" class="rr-match-score">
                       <text :class="['score-num', { best: m.scoreA > m.scoreB }]">{{ m.scoreA }}</text>
                       <text class="score-colon">:</text>
@@ -976,7 +1003,7 @@ function sidePlayers(team, names) {
           <input class="score-input" type="number" v-model="scoreForm.scoreB" placeholder="0" />
           <text class="score-side">B 队</text>
         </view>
-        <view class="score-tip">胜方按比分自动判定，例如 21 : 15</view>
+        <view class="score-tip">胜方按比分自动判定，例如 21 : 15；填 0 : 0 可撤销本场（误点救回）</view>
         <!-- 计分留痕：谁当裁判、计了多少分、谁后面又改了 -->
         <view v-if="scoreAudit.refereeName" class="score-audit">
           <view class="score-audit-title">
@@ -1066,6 +1093,10 @@ function sidePlayers(team, names) {
         </view>
         <scroll-view scroll-y class="log-list">
           <view v-for="(log, li) in logRows" :key="li" class="score-audit-row">
+            <SmartImage v-if="log.operatorAvatar" class="audit-avatar-img" :src="log.operatorAvatar" mode="aspectFill" />
+            <view v-else class="audit-avatar" :style="{ background: colorOf(log.operatorId) }">
+              {{ log.operatorName ? log.operatorName.charAt(0) : '球' }}
+            </view>
             <text class="score-audit-who">{{ log.operatorName }}</text>
             <text class="score-audit-text">{{ logText(log) }}</text>
             <text class="score-audit-time">{{ formatLogTime(log.time) }}</text>
@@ -1795,7 +1826,23 @@ function sidePlayers(team, names) {
   gap: 8px;
   font-size: 11px;
   color: #5a726d;
-  padding: 3px 0;
+  padding: 5px 0;
+}
+.audit-avatar {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 24px;
+  text-align: center;
+}
+.audit-avatar-img {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
 }
 .score-audit-who {
   flex-shrink: 0;

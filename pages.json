@@ -83,6 +83,40 @@
       }
     },
     {
+      "path": "pages/tournament-list/tournament-list",
+      "style": {
+        "navigationBarTitleText": "大型比赛",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/tournament-detail/tournament-detail",
+      "style": {
+        "navigationBarTitleText": "赛事详情",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/tournament-entry/tournament-entry",
+      "style": {
+        "navigationBarTitleText": "赛事报名"
+      }
+    },
+    {
+      "path": "pages/tournament-bracket/tournament-bracket",
+      "style": {
+        "navigationBarTitleText": "对阵图",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/tournament-matches/tournament-matches",
+      "style": {
+        "navigationBarTitleText": "赛程录入",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
       "path": "pages/crop/crop",
       "style": {
         "navigationStyle": "custom",
