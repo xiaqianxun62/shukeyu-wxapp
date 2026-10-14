@@ -31,6 +31,10 @@ const scoring = ref(false)
 const scoreForm = ref({ matchId: 0, scoreA: '', scoreB: '' })
 /** 当前弹层对阵的计分信息：裁判与改分历史（来自 matches 接口的 refereeName / scoreLogs） */
 const scoreAudit = ref({ refereeName: '', logs: [] })
+/** 打分记录弹层：本场谁当裁判、计了多少分、之后谁又改了分 */
+const logVisible = ref(false)
+const logForm = ref({ round: 0, court: 0 })
+const logRows = ref([])
 /** 轮排统计：局内得分排名（已编排的球局才有） */
 const rotationStats = ref([])
 
@@ -365,6 +369,17 @@ function openScore(match) {
   scoreVisible.value = true
 }
 
+/** 打分记录：比分改动对所有人公开可查，未登录也能看 */
+function openScoreLog(match, round) {
+  logForm.value = { round: round || 0, court: match.court || 0 }
+  logRows.value = match.scoreLogs || []
+  logVisible.value = true
+}
+
+function closeScoreLog() {
+  logVisible.value = false
+}
+
 /** 计分日志时间展示：2026-01-01T12:30:00 → 01-01 12:30 */
 function formatLogTime(time) {
   if (!time) return ''
@@ -665,7 +680,7 @@ function sidePlayers(team, names) {
                   <view class="rr-match-sides">
                     <view class="rr-match-side">
                       <view
-                        v-for="(p, pi) in sidePlayers(m.teamA, m.teamANames)
+                        v-for="(p, pi) in sidePlayers(m.teamA, m.teamANames)"
                         :key="`a-${p.userId}`"
                         class="rr-player"
                       >
@@ -702,6 +717,13 @@ function sidePlayers(team, names) {
                   <view v-if="m.refereeName" class="rr-match-referee">
                     <text>裁判 · {{ m.refereeName }}</text>
                     <text v-if="(m.scoreLogs || []).length > 1" class="rr-referee-edited">已改分</text>
+                    <view
+                      v-if="(m.scoreLogs || []).length"
+                      class="rr-log-btn"
+                      hover-class="rr-log-btn-hv"
+                      hover-stay-time="120"
+                      @click.stop="openScoreLog(m, rg.round)"
+                    >打分记录</view>
                   </view>
                 </view>
               </view>
@@ -822,6 +844,24 @@ function sidePlayers(team, names) {
         <button class="btn primary picker-go" type="button" :loading="scoring" @click="submitScore">
           保存比分
         </button>
+      </view>
+    </view>
+
+    <!-- 打分记录弹层：本场比分的录入与修改全过程（不登录也能看） -->
+    <view v-if="logVisible" class="mask" @click="closeScoreLog">
+      <view class="picker" @click.stop>
+        <view class="picker-head">
+          <text class="picker-title">打分记录 · 第 {{ logForm.round }} 轮 {{ logForm.court }} 号场</text>
+          <text class="picker-close" @click="closeScoreLog">✕</text>
+        </view>
+        <scroll-view scroll-y class="log-list">
+          <view v-for="(log, li) in logRows" :key="li" class="score-audit-row">
+            <text class="score-audit-who">{{ log.operatorName }}</text>
+            <text class="score-audit-text">{{ logText(log) }}</text>
+            <text class="score-audit-time">{{ formatLogTime(log.time) }}</text>
+          </view>
+          <view v-if="!logRows.length" class="panel-empty">还没有打分记录</view>
+        </scroll-view>
       </view>
     </view>
   </view>
@@ -1575,6 +1615,22 @@ function sidePlayers(team, names) {
   background: #f6ecc9;
   border-radius: 8px;
   padding: 0 6px;
+}
+.rr-log-btn {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid #14665b;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #14665b;
+}
+.rr-log-btn-hv {
+  background: #e6f1ee;
+}
+.log-list {
+  max-height: 46vh;
+  padding: 4px 0;
 }
 .rank-table {
   width: 100%;

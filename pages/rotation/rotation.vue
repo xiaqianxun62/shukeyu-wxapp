@@ -46,6 +46,14 @@ const isGameCreator = computed(
 const scoreVisible = ref(false)
 const scoring = ref(false)
 const scoreForm = ref({ matchId: 0, round: 0, court: 0, scoreA: '', scoreB: '' })
+/** 当前弹层对阵的计分信息：裁判与改分历史（来自轮排接口的 refereeName / scoreLogs） */
+const scoreAudit = ref({ refereeName: '', logs: [] })
+
+/* ---------- 打分记录 ---------- */
+/** 打分记录弹层：本场谁当裁判、计了多少分、之后谁又改了分 */
+const logVisible = ref(false)
+const logForm = ref({ round: 0, court: 0 })
+const logRows = ref([])
 
 const perMatch = computed(() => (format.value === 1 ? 2 : 4))
 const onCourt = computed(() => Math.min(courts.value, Math.floor(peopleCount.value / perMatch.value)) * perMatch.value)
@@ -242,7 +250,37 @@ function openScore(match, round) {
     scoreA: match.winner ? String(match.scoreA) : '',
     scoreB: match.winner ? String(match.scoreB) : '',
   }
+  scoreAudit.value = {
+    refereeName: match.refereeName || '',
+    logs: match.scoreLogs || [],
+  }
   scoreVisible.value = true
+}
+
+/** 打分记录：未登录也能看，比分改动对所有人公开可查 */
+function openScoreLog(match, round) {
+  logForm.value = { round, court: match.court }
+  logRows.value = match.scoreLogs || []
+  logVisible.value = true
+}
+
+function closeScoreLog() {
+  logVisible.value = false
+}
+
+/** 计分日志时间展示：2026-01-01T12:30:00 → 01-01 12:30 */
+function formatLogTime(time) {
+  if (!time) return ''
+  const s = String(time).replace('T', ' ')
+  return s.length >= 16 ? s.slice(5, 16) : s
+}
+
+/** 单条计分日志文案：首次录入 / 改分（含改前比分） */
+function logText(log) {
+  if (log.action === 2 && log.prevScoreA != null) {
+    return `改分 ${log.prevScoreA} : ${log.prevScoreB} → ${log.scoreA} : ${log.scoreB}`
+  }
+  return `录入 ${log.scoreA} : ${log.scoreB}`
 }
 
 function closeScore() {
@@ -467,6 +505,18 @@ async function submitScore() {
                   </view>
                 </view>
               </view>
+              <!-- 裁判与计分留痕：谁首次录的分、之后被改过几次 -->
+              <view v-if="m.refereeName" class="court-referee">
+                <text class="court-referee-text">裁判 · {{ m.refereeName }}</text>
+                <text v-if="(m.scoreLogs || []).length > 1" class="court-referee-edited">已改分 {{ (m.scoreLogs || []).length - 1 }} 次</text>
+                <view
+                  v-if="(m.scoreLogs || []).length"
+                  class="court-log-btn"
+                  hover-class="court-log-btn-hv"
+                  hover-stay-time="120"
+                  @click.stop="openScoreLog(m, r.round)"
+                >打分记录</view>
+              </view>
             </view>
           </view>
         </view>
@@ -488,7 +538,39 @@ async function submitScore() {
           <text class="score-side">B 队</text>
         </view>
         <view class="score-tip">胜方按比分自动判定，例如 21 : 15</view>
+        <!-- 计分留痕：谁当裁判、计了多少分、谁后面又改了 -->
+        <view v-if="scoreAudit.refereeName" class="score-audit">
+          <view class="score-audit-title">
+            <text>裁判 · {{ scoreAudit.refereeName }}</text>
+            <text v-if="scoreAudit.logs.length > 1" class="score-audit-badge">已改分 {{ scoreAudit.logs.length - 1 }} 次</text>
+          </view>
+          <view v-for="(log, li) in scoreAudit.logs" :key="li" class="score-audit-row">
+            <text class="score-audit-who">{{ log.operatorName }}</text>
+            <text class="score-audit-text">{{ logText(log) }}</text>
+            <text class="score-audit-time">{{ formatLogTime(log.time) }}</text>
+          </view>
+        </view>
         <button class="run picker-go" type="button" :loading="scoring" @click="submitScore">保存比分</button>
+      </view>
+    </view>
+
+    <!-- 打分记录弹层：本场比分的录入与修改全过程 -->
+    <view v-if="logVisible" class="mask" @click="closeScoreLog">
+      <view class="picker" @click.stop>
+        <view class="picker-head">
+          <text class="picker-title">打分记录 · 第 {{ logForm.round }} 轮 {{ logForm.court }} 号场</text>
+          <text class="picker-close" @click="closeScoreLog">✕</text>
+        </view>
+        <scroll-view scroll-y class="log-list">
+          <view v-for="(log, li) in logRows" :key="li" class="log-row">
+            <view class="log-row-top">
+              <text class="log-who">{{ log.operatorName }}</text>
+              <text class="log-time">{{ formatLogTime(log.time) }}</text>
+            </view>
+            <text class="log-text">{{ logText(log) }}</text>
+          </view>
+          <view v-if="!logRows.length" class="log-empty">还没有打分记录</view>
+        </scroll-view>
       </view>
     </view>
 
@@ -939,5 +1021,104 @@ async function submitScore() {
   text-align: center;
   font-size: 11px;
   color: #5a726d;
+}
+
+/* ---------- 裁判与打分记录 ---------- */
+.court-referee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #e3e8e6;
+}
+.court-referee-text {
+  font-size: 11px;
+  color: #5a726d;
+}
+.court-referee-edited {
+  font-size: 10px;
+  color: #8a6d1a;
+}
+.court-log-btn {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 1px solid #14665b;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #14665b;
+}
+.court-log-btn-hv {
+  background: #e6f1ee;
+}
+.score-audit {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #faf7f0;
+}
+.score-audit-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a2e2a;
+}
+.score-audit-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #8a6d1a;
+}
+.score-audit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #5a726d;
+}
+.score-audit-who {
+  font-weight: 600;
+  color: #1a2e2a;
+}
+.score-audit-time {
+  margin-left: auto;
+  font-size: 10px;
+  color: #9aa8a4;
+}
+.log-list {
+  max-height: 46vh;
+  padding: 4px 0;
+}
+.log-row {
+  padding: 8px 0;
+  border-bottom: 1px solid #f0efea;
+}
+.log-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.log-who {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a2e2a;
+}
+.log-time {
+  font-size: 10px;
+  color: #9aa8a4;
+}
+.log-text {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #5a726d;
+}
+.log-empty {
+  padding: 16px 0;
+  text-align: center;
+  font-size: 12px;
+  color: #9aa8a4;
 }
 </style>

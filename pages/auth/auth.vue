@@ -16,6 +16,7 @@ const form = ref({
   account: '',
   password: '',
   name: '',
+  nickname: '',
   gender: 1,
 })
 const agree = ref(true)
@@ -105,6 +106,10 @@ async function submit() {
     uni.showToast({ title: '请填写姓名', icon: 'none' })
     return
   }
+  if (tab.value === 'register' && !form.value.nickname.trim()) {
+    uni.showToast({ title: '请填写昵称', icon: 'none' })
+    return
+  }
   try {
     if (!captchaInput.value.trim()) {
       uni.showToast({ title: '请填写图形验证码', icon: 'none' })
@@ -121,6 +126,7 @@ async function submit() {
       await register({
         account: form.value.account,
         name: form.value.name,
+        nickname: form.value.nickname.trim(),
         gender: Number(form.value.gender),
         password: form.value.password,
         captchaUuid: captchaUuid.value,
@@ -168,13 +174,23 @@ onMounted(() => {
 
       <template v-if="tab === 'register'">
         <view class="field">
-          <text class="label">名称</text>
-          <uni-easyinput v-model="form.name" placeholder="请输入名称" :maxlength="20" @input="onNameInput" />
+          <view class="label-row">
+            <text class="label">昵称</text>
+            <text class="label-tip">上网冲浪用昵称</text>
+          </view>
+          <uni-easyinput v-model="form.nickname" placeholder="请输入昵称" :maxlength="20" />
+        </view>
+        <view class="field">
+          <view class="label-row">
+            <text class="label">姓名</text>
+            <text class="label-tip">对局内用姓名方便统计</text>
+          </view>
+          <uni-easyinput v-model="form.name" placeholder="请输入姓名" :maxlength="20" @input="onNameInput" />
           <view v-if="nameAvailable === false" class="field-hint bad">
-            ⚠️ 这个昵称已经被占用啦，请换一个
+            ⚠️ 这个姓名已经被占用啦，请换一个
           </view>
           <view v-else-if="nameAvailable === true" class="field-hint good">
-            ✓ 昵称可用
+            ✓ 姓名可用
           </view>
         </view>
         <view class="field">
@@ -282,6 +298,20 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 700;
   color: #1a2e2a;
+}
+/* 标签右侧的用途提示，例如「上网冲浪用昵称」 */
+.label-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.label-row .label {
+  margin-bottom: 0;
+}
+.label-tip {
+  font-size: 11px;
+  color: #5a726d;
 }
 
 /* 图形验证码 */

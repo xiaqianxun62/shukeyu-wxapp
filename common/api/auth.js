@@ -16,7 +16,7 @@ export function login(payload) {
   return request('/auth/login', { method: 'POST', body: payload })
 }
 
-/** @param {{ account: string, name: string, gender: number, password: string, captchaUuid: string, captchaCode: string }} payload */
+/** @param {{ account: string, name: string, nickname?: string, gender: number, password: string, captchaUuid: string, captchaCode: string }} payload */
 export function register(payload) {
   return request('/auth/register', { method: 'POST', body: payload })
 }

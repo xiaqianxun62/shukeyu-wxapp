@@ -1,13 +1,39 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { genderText, resolveUrl } from '../../common/util'
+import { genderText, resolveUrl, toastError } from '../../common/util'
 import SmartImage from '../../components/SmartImage/SmartImage.vue'
 import { useAuth } from '../../common/store/auth'
 import { navigateTo } from '../../common/nav'
 import { ENVIRONMENTS, getEnvId, setEnvId, getCustomUrl, setCustomUrl, getCurrentEnv } from '../../common/config'
+import { updateProfile } from '../../common/api/auth'
 
-const { user, isLoggedIn, logout, restore, refreshMe } = useAuth()
+const { user, isLoggedIn, logout, restore, refreshMe, applyProfile } = useAuth()
+
+/** 积分榜展示名：0 真实姓名 1 昵称（默认）。只影响自己在榜单上的那一行 */
+const nameDisplay = computed(() => (user.value && user.value.nameDisplay === 0 ? 0 : 1))
+const savingDisplay = ref(false)
+
+async function setNameDisplay(value) {
+  if (!isLoggedIn.value || savingDisplay.value || value === nameDisplay.value) return
+  savingDisplay.value = true
+  try {
+    // 后端 profile 接口的性别是必填项，这里带上原值只改展示名偏好
+    const updated = await updateProfile({
+      gender: Number(user.value.gender) || 1,
+      nameDisplay: value,
+    })
+    applyProfile(updated)
+    uni.showToast({
+      title: value === 1 ? '积分榜显示昵称' : '积分榜显示真实姓名',
+      icon: 'none',
+    })
+  } catch (e) {
+    toastError(e, '设置失败')
+  } finally {
+    savingDisplay.value = false
+  }
+}
 
 const statusBarHeight = uni.getSystemInfoSync().statusBarHeight || 20
 const navbarHeight = statusBarHeight + 44
@@ -101,6 +127,15 @@ function saveCustomUrl() {
         <text class="item-text">编辑个人信息</text>
         <text class="arrow">›</text>
       </view>
+      <view v-if="isLoggedIn" class="item">
+        <uni-icons type="star" size="16" color="#14665B" />
+        <text class="item-text">积分榜显示</text>
+        <view class="seg">
+          <view :class="['seg-item', { active: nameDisplay === 1 }]" @click="setNameDisplay(1)">昵称</view>
+          <view :class="['seg-item', { active: nameDisplay === 0 }]" @click="setNameDisplay(0)">姓名</view>
+        </view>
+      </view>
+      <!--<view v-if="isLoggedIn" class="item-hint">只决定你自己在积分榜上显示什么，其他人不受影响</view>-->
       <view class="item" @click="goRotation">
         <uni-icons type="refresh" size="16" color="#14665B" />
         <text class="item-text">轮排安排</text>
@@ -291,6 +326,31 @@ function saveCustomUrl() {
   font-size: 16px;
   color: #5a726d;
   margin-left: auto;
+}
+/* 积分榜展示名：昵称 / 姓名 二选一 */
+.seg {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.seg-item {
+  padding: 4px 12px;
+  border: 1px solid #e3e8e6;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #5a726d;
+  font-size: 12px;
+  font-weight: 600;
+}
+.seg-item.active {
+  border-color: #14665b;
+  background: #e0f1ec;
+  color: #14665b;
+}
+.item-hint {
+  padding: 8px 14px 12px;
+  font-size: 11px;
+  color: #5a726d;
 }
 .tag {
   font-size: 11px;
