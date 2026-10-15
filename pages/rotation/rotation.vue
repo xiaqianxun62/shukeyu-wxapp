@@ -509,7 +509,7 @@ async function submitScore() {
         <view class="hero-title">轮排</view>
         <view class="hero-desc">
           人多场少时按轮轮换上场：每人上场次数差不超过 1 轮，尽量避免重复搭档，
-          组队用 ELO 期望胜率做均衡（让每场双方的预期胜率尽量接近 50%）。
+          组队用期望胜率做均衡（让每场双方的预期胜率尽量接近 50%）。
         </view>
       </view>
 
@@ -615,7 +615,6 @@ async function submitScore() {
 
       <view v-if="result" class="result">
         <view class="result-title">轮排表 · {{ result.formatName }} · {{ result.courts }} 片场地</view>
-        <text v-if="mode === 'game'" class="result-tip">已保存到服务器，退出后回来还在</text>
 
         <view v-for="r in result.rotation" :key="r.round" class="round">
           <view class="round-head">
@@ -658,7 +657,7 @@ async function submitScore() {
                 <text v-else class="court-score">试算</text>
               </view>
               <view v-if="m.expectedA" class="court-elo">
-                ELO 预期胜率：A 队 {{ Math.round(m.expectedA * 100) }}% · B 队
+                预期胜率：A 队 {{ Math.round(m.expectedA * 100) }}% · B 队
                 {{ 100 - Math.round(m.expectedA * 100) }}%
               </view>
               <view class="court-vs">
