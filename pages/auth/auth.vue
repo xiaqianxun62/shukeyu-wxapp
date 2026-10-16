@@ -153,7 +153,7 @@ onMounted(() => {
     <NavBack />
 
     <view class="head">
-      <view class="head-title">数羽 SHUYU</view>
+      <view class="head-title">数科羽 shukeyu</view>
       <view class="head-sub">注册账号后，即可发布与报名球局</view>
     </view>
 

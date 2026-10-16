@@ -16,11 +16,11 @@ const LOAD_TIMEOUT_MS = 10000
 const g = typeof window !== 'undefined' ? window : {}
 
 function getPending() {
-  return g.__shuyuQQMapPromise || null
+  return g.__shukeyuQQMapPromise || null
 }
 
 function setPending(p) {
-  g.__shuyuQQMapPromise = p
+  g.__shukeyuQQMapPromise = p
 }
 
 /**
@@ -41,7 +41,7 @@ export function loadQQMap() {
 
   const p = new Promise((resolve, reject) => {
     // JSONP 回调名必须全局唯一，重复加载时 Tencent 会立即回调
-    const cbName = `__shuyuQQMapCb_${Date.now()}_${Math.floor(Math.random() * 1e6)}`
+    const cbName = `__shukeyuQQMapCb_${Date.now()}_${Math.floor(Math.random() * 1e6)}`
     let script = null
     let timer = null
 
