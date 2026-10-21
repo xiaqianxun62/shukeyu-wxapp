@@ -9,3 +9,8 @@ import { request } from './request'
 export function getHomePoem() {
   return request('/settings/home-poem')
 }
+
+/** 首页弹窗公告（enabled="1" 且有 content 时展示；version 更新时重新弹） */
+export function getHomeNotice() {
+  return request('/settings/home-notice')
+}

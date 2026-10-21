@@ -2,7 +2,7 @@
 import { computed, nextTick, ref } from 'vue'
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app'
 import { GAME_STATUS, cancelRegisterGame, listGames, registerGame } from '../../common/api/game'
-import { getHomePoem } from '../../common/api/settings'
+import { getHomeNotice, getHomePoem } from '../../common/api/settings'
 import { AVATAR_COLORS, resolveUrl, shortDate, shortTime, thumbUrl, toastError } from '../../common/util'
 import SmartImage from '../../components/SmartImage/SmartImage.vue'
 import { useAuth } from '../../common/store/auth'
@@ -45,6 +45,82 @@ const DEFAULT_POEM = {
 
 /** 站点可配置文案（从 /settings/home-poem 拉） */
 const poem = ref({ ...DEFAULT_POEM })
+
+/** 首页弹窗公告（从 /settings/home-notice 拉，管理员配置：频率/颜色/宽高） */
+const notice = ref({ visible: false, cfg: null })
+
+function noticeDate() {
+  const d = new Date()
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+}
+
+/** 关闭标记按频率构造：once=只记版本 / always=不记 / daily=版本|日期 */
+function noticeDismissKey(cfg) {
+  if (!cfg) return ''
+  if (cfg.frequency === 'once') return cfg.version || '1'
+  if (cfg.frequency === 'always') return ''
+  return `${cfg.version || '1'}|${noticeDate()}`
+}
+
+/** 关闭弹窗：按频率写本地存储，always 模式只关当次 */
+function dismissNotice() {
+  const cfg = notice.value.cfg
+  notice.value.visible = false
+  const key = noticeDismissKey(cfg)
+  if (!key) return
+  try {
+    uni.setStorageSync('yuyue_notice_dismissed', key)
+  } catch (e) {
+    // 存储失败不影响关闭
+  }
+}
+
+/** 判断是否该弹：enabled=1、有正文、且未超过频率限制 */
+function maybeShowNotice(data) {
+  if (!data || data.enabled !== '1' || !(data.content || '').trim()) return
+  const key = noticeDismissKey(data)
+  if (key) {
+    let saved = ''
+    try {
+      saved = uni.getStorageSync('yuyue_notice_dismissed') || ''
+    } catch (e) {
+      saved = ''
+    }
+    if (saved === key) return
+  }
+  notice.value = { visible: true, cfg: data }
+}
+
+/** 卡片样式：管理员配置的背景色 / 宽 / 高（height=0 自适应；宽不超过屏宽减边距） */
+const noticeCardStyle = computed(() => {
+  const c = notice.value.cfg
+  if (!c) return {}
+  const style = { background: c.bgColor || '#fffdf8' }
+  const w = parseInt(c.width, 10)
+  if (!isNaN(w) && w > 0) {
+    const maxW = (uni.getSystemInfoSync().windowWidth || 375) - 48
+    const px = Math.min(w, maxW) + 'px'
+    style.width = px
+    style.maxWidth = px // 覆盖 .notice-card 默认 max-width: 320px
+  }
+  const h = parseInt(c.height, 10)
+  if (!isNaN(h) && h > 0) style.height = h + 'px'
+  return style
+})
+
+/** 取配置色值，空则回退默认色 */
+function noticeColor(field, fallback) {
+  const c = notice.value.cfg
+  return (c && c[field]) || fallback
+}
+
+/** 公告配图点击放大预览（previewImage 需要完整 URL） */
+function previewNoticeMedia() {
+  const c = notice.value.cfg
+  if (c && c.mediaUrl) {
+    uni.previewImage({ urls: [resolveUrl(c.mediaUrl)] })
+  }
+}
 
 /** 自定义顶栏的实际占位高度：状态栏 + 16 上边距 + 34 标题行 + 14 下边距 */
 const topbarHeight = computed(() => statusBarHeight + 64)
@@ -102,6 +178,12 @@ async function load() {
     if (data && data.line1) poem.value = { ...DEFAULT_POEM, ...data }
   } catch {
     // 文案拉不动不影响首页展示
+  }
+  // 首页弹窗公告（公开接口，失败不弹）
+  try {
+    maybeShowNotice(await getHomeNotice())
+  } catch {
+    // 公告拉不动不弹窗
   } finally {
     loading.value = false
     uni.stopPullDownRefresh()
@@ -647,6 +729,45 @@ async function onJoin(game) {
       </view>
 
       <view class="tail" />
+    </view>
+
+    <!-- 首页弹窗公告（管理员在 PC 后台配置：频率/颜色/宽高） -->
+    <view v-if="notice.visible && notice.cfg" class="notice-mask" @click.stop="dismissNotice">
+      <view class="notice-card" :style="noticeCardStyle" @click.stop>
+        <view class="notice-close" @click.stop="dismissNotice">
+          <text>✕</text>
+        </view>
+        <text class="notice-title" :style="{ color: noticeColor('titleColor', '#22312a') }">
+          {{ (notice.cfg.title || '').trim() || '公告' }}
+        </text>
+        <view class="notice-content" :style="{ color: noticeColor('contentColor', '#7c837d') }">
+          <text class="notice-text">{{ notice.cfg.content }}</text>
+          <!-- 配图：点击可放大预览 -->
+          <image
+            v-if="notice.cfg.mediaType === 'image' && notice.cfg.mediaUrl"
+            class="notice-media"
+            :src="resolveUrl(notice.cfg.mediaUrl)"
+            mode="widthFix"
+            @click="previewNoticeMedia"
+          />
+          <!-- 配视频：原生播放器，带控制条 -->
+          <video
+            v-else-if="notice.cfg.mediaType === 'video' && notice.cfg.mediaUrl"
+            class="notice-media-video"
+            :src="resolveUrl(notice.cfg.mediaUrl)"
+            controls
+          />
+        </view>
+        <view
+          class="notice-ok"
+          :style="{ background: noticeColor('btnBgColor', '#0f3b2e') }"
+          hover-class="notice-ok-hv"
+          hover-stay-time="120"
+          @click.stop="dismissNotice"
+        >
+          <text :style="{ color: noticeColor('btnTextColor', '#f3f0e4') }">我知道了</text>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -1312,5 +1433,90 @@ async function onJoin(game) {
 
 .tail {
   height: 18px;
+}
+
+/* ===== 首页弹窗公告 ===== */
+.notice-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15, 30, 26, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+.notice-card {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 26px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+}
+.notice-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--dim);
+}
+.notice-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  padding-right: 26px;
+  line-height: 1.4;
+}
+.notice-content {
+  margin-top: 10px;
+  flex: 1;
+  min-height: 0;
+  max-height: 46vh;
+  overflow: scroll;
+}
+.notice-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: inherit;
+}
+.notice-media {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+  margin-top: 10px;
+}
+.notice-media-video {
+  display: block;
+  width: 100%;
+  height: 180px;
+  border-radius: 10px;
+  margin-top: 10px;
+  background: #000;
+}
+.notice-ok {
+  margin-top: 18px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--world);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notice-ok text {
+  color: #f3f0e4;
+  font-size: 15px;
+  font-weight: 700;
+}
+.notice-ok-hv {
+  opacity: 0.88;
 }
 </style>
