@@ -12,6 +12,20 @@ const ratingsText = ref('1200,1300,1400,1250,1180,1320')
 const result = ref(null)
 const computing = ref(false)
 
+/** 试算类别：1单打 2双打(同性别) 3混双 —— 未选具体编排方案时后端按类别预设赛制 */
+const category = ref(1)
+const CATEGORIES = [
+  { value: 1, label: '单打' },
+  { value: 2, label: '双打（同性别）' },
+  { value: 3, label: '混双' },
+]
+
+function switchCategory(v) {
+  if (category.value === v) return
+  category.value = v
+  schemeIndex.value = 0 // 类别决定默认赛制，清掉手动编排方案
+}
+
 /**
  * 编排方案：不传 = 按男女人数自动过滤（与线上编排一致）；
  * format 走「赛制」语义（单打 / 男双 / 女双 / 混双），schemeId 走 8 套编排方案
@@ -55,6 +69,7 @@ async function run() {
       ratings: ratings.value,
       gamesPlayed: Number(gamesPlayed.value),
       roundRobin: roundRobin.value,
+      category: category.value,
     }
     if (picked.format) payload.format = picked.format
     else if (picked.schemeId) payload.schemeId = picked.schemeId
@@ -92,6 +107,19 @@ function allSides(match) {
       </view>
 
       <view class="panel">
+        <view class="col">
+          <text class="row-label">试算类别</text>
+          <view class="chips">
+            <view
+              v-for="c in CATEGORIES"
+              :key="c.value"
+              :class="['chip', { active: category === c.value }]"
+              @click="switchCategory(c.value)"
+            >
+              {{ c.label }}
+            </view>
+          </view>
+        </view>
         <view class="row">
           <text class="row-label">男生</text>
           <uni-number-box v-model="maleCount" :min="0" :max="12" />

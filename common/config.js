@@ -17,7 +17,7 @@ const ENVIRONMENTS = [
   {
     id: 'prod',
     label: '线上环境',
-    url: 'http://42.193.190.232/api',
+    url: 'http://20.89.53.251/api',
   },
 ]
 

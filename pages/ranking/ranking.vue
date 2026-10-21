@@ -7,6 +7,13 @@ import SmartImage from '../../components/SmartImage/SmartImage.vue'
 
 const list = ref([])
 const loading = ref(false)
+/** 榜单类别：1单打 2双打(同性别) 3混双 */
+const rankType = ref(1)
+const RANK_TABS = [
+  { value: 1, label: '单打榜' },
+  { value: 2, label: '双打榜' },
+  { value: 3, label: '混双榜' },
+]
 
 const statusBarHeight = uni.getSystemInfoSync().statusBarHeight || 20
 const navbarHeight = statusBarHeight + 44
@@ -14,13 +21,20 @@ const navbarHeight = statusBarHeight + 44
 async function load() {
   loading.value = true
   try {
-    list.value = await fetchRanking(20)
+    list.value = await fetchRanking(20, rankType.value)
   } catch (e) {
     toastError(e, '榜单加载失败')
   } finally {
     loading.value = false
     uni.stopPullDownRefresh()
   }
+}
+
+/** 切换榜单类别并重载 */
+function switchType(t) {
+  if (rankType.value === t) return
+  rankType.value = t
+  load()
 }
 
 onShow(() => {
@@ -58,6 +72,17 @@ function winRate(item) {
     <view class="hero">
       <view class="hero-title">ELO 积分榜</view>
       <view class="hero-desc">每场对局自动结算，榜单实时更新</view>
+      <!-- 榜单类别：单打 / 双打(同性别) / 混双 -->
+      <view class="tabs">
+        <view
+          v-for="t in RANK_TABS"
+          :key="t.value"
+          :class="['tab', { on: rankType === t.value }]"
+          @click="switchType(t.value)"
+        >
+          <text>{{ t.label }}</text>
+        </view>
+      </view>
     </view>
 
     <view v-if="loading && !list.length" class="state">加载中…</view>
@@ -118,6 +143,27 @@ function winRate(item) {
   margin-top: 6px;
   font-size: 12px;
   opacity: 0.9;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.tab {
+  flex: 1;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  color: #cfdfd9;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tab.on {
+  background: #e5c84b;
+  color: #1a2e2a;
 }
 .state {
   margin-top: 60px;

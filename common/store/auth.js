@@ -40,6 +40,16 @@ function persist(next) {
         account: next.account || '',
         rating: next.rating,
         gamesPlayed: next.gamesPlayed,
+        // 分类 ELO：单打 / 双打 / 混双
+        ratingSingles: next.ratingSingles ?? null,
+        singlesWin: next.singlesWin ?? null,
+        singlesLoss: next.singlesLoss ?? null,
+        ratingDoubles: next.ratingDoubles ?? null,
+        doublesWin: next.doublesWin ?? null,
+        doublesLoss: next.doublesLoss ?? null,
+        ratingMixed: next.ratingMixed ?? null,
+        mixedWin: next.mixedWin ?? null,
+        mixedLoss: next.mixedLoss ?? null,
         isAdmin: next.isAdmin === true,
       }),
     )

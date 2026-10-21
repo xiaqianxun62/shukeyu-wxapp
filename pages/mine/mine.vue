@@ -37,6 +37,8 @@ async function setNameDisplay(value) {
 
 const statusBarHeight = uni.getSystemInfoSync().statusBarHeight || 20
 const navbarHeight = statusBarHeight + 44
+/** 仅管理员显示环境切换入口 */
+const isAdmin = computed(() => !!(user.value && user.value.isAdmin === true))
 const currentEnv = ref(getCurrentEnv())
 const envPickerVisible = ref(false)
 const customUrlInput = ref(getCustomUrl())
@@ -114,6 +116,25 @@ function saveCustomUrl() {
           <text class="stat-label">历史场次 ›</text>
         </view>
       </view>
+
+      <!-- 分类 ELO 明细：单打 / 双打(同性别) / 混双 -->
+      <view class="cat-stats">
+        <view class="cat-row">
+          <text class="cat-name">单打</text>
+          <text class="cat-rating">{{ user.ratingSingles ?? user.rating ?? 1200 }}</text>
+          <text class="cat-record">{{ user.singlesWin ?? 0 }}胜 {{ user.singlesLoss ?? 0 }}负</text>
+        </view>
+        <view class="cat-row">
+          <text class="cat-name">双打</text>
+          <text class="cat-rating">{{ user.ratingDoubles ?? user.rating ?? 1200 }}</text>
+          <text class="cat-record">{{ user.doublesWin ?? 0 }}胜 {{ user.doublesLoss ?? 0 }}负</text>
+        </view>
+        <view class="cat-row">
+          <text class="cat-name">混双</text>
+          <text class="cat-rating">{{ user.ratingMixed ?? user.rating ?? 1200 }}</text>
+          <text class="cat-record">{{ user.mixedWin ?? 0 }}胜 {{ user.mixedLoss ?? 0 }}负</text>
+        </view>
+      </view>
     </view>
 
     <view v-else class="guest">
@@ -166,7 +187,7 @@ function saveCustomUrl() {
         <text class="arrow">›</text>
       </view>
 
-      <view class="item" @click="openEnvPicker">
+      <view v-if="isAdmin" class="item" @click="openEnvPicker">
         <uni-icons type="gear" size="16" color="#14665B" />
         <text class="item-text">环境切换</text>
         <text class="env-tag">{{ currentEnv.label }}</text>
@@ -181,8 +202,8 @@ function saveCustomUrl() {
 
     <view class="foot">by 2026@千巽</view>
 
-    <!-- 环境切换弹层 -->
-    <view v-if="envPickerVisible" class="mask" @click="closeEnvPicker">
+    <!-- 环境切换弹层（仅管理员可从入口打开，这里再兜一层） -->
+    <view v-if="envPickerVisible && isAdmin" class="mask" @click="closeEnvPicker">
       <view class="picker" @click.stop>
         <view class="picker-head">
           <text class="picker-title">切换环境</text>
@@ -270,6 +291,36 @@ function saveCustomUrl() {
   display: flex;
   gap: 10px;
   margin-top: 18px;
+}
+/* 分类 ELO 明细：单打 / 双打 / 混双（深色头部底色） */
+.cat-stats {
+  margin-top: 10px;
+  border: 1px solid rgba(250, 247, 240, 0.35);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+.cat-row + .cat-row {
+  border-top: 1px solid rgba(250, 247, 240, 0.18);
+}
+.cat-name {
+  width: 40px;
+  color: rgba(250, 247, 240, 0.75);
+}
+.cat-rating {
+  color: #e5c84b;
+  font-weight: 800;
+}
+.cat-record {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(250, 247, 240, 0.75);
 }
 .stat {
   flex: 1;
