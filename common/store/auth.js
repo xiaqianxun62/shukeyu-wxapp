@@ -8,7 +8,7 @@ import { randomUid } from '../util'
  * 模块级 ref 单例：任何页面调用 useAuth() 拿到的都是同一份状态。
  */
 
-const USER_KEY = 'shukeyu_user'
+const USER_KEY = 'ShuKeYu_user'
 
 function readCachedUser() {
   try {
@@ -115,13 +115,13 @@ function getWxCode() {
 function mockCode() {
   let id = ''
   try {
-    id = uni.getStorageSync('shukeyu_devid') || ''
+    id = uni.getStorageSync('ShuKeYu_devid') || ''
   } catch (e) {
     id = ''
   }
   if (!id) {
     id = 'mock_' + randomUid(8)
-    uni.setStorageSync('shukeyu_devid', id)
+    uni.setStorageSync('ShuKeYu_devid', id)
   }
   return id
 }
@@ -198,7 +198,7 @@ async function refreshMe() {
  * 放在 store 里而不是 App.vue，是为了让「谁先 import 谁负责」——页面必然 import 本模块。
  */
 if (typeof uni !== 'undefined' && typeof uni.$on === 'function') {
-  uni.$on('shukeyu:unauthorized', () => {
+  uni.$on('ShuKeYu:unauthorized', () => {
     restored.value = false
     persist(null)
   })

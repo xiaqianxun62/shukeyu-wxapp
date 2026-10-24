@@ -1,4 +1,4 @@
-# 数科羽 shukeyu - 微信小程序 / H5（uni-app）
+# 数科羽 ShuKeYu - 微信小程序 / H5（uni-app）
 
 校园羽毛球球局系统的**移动端**：微信小程序为主，同一套代码可发行 H5 手机网页。
 
@@ -54,12 +54,12 @@ node scripts/gen-tabbar-icons.mjs   # 输出 static/tabbar/*.png 并打印 ASCII
 
 ## 环境切换
 
-[common/config.js](common/config.js) 提供运行时环境切换，持久化在本地存储（`shukeyu_env`），所有端共用：
+[common/config.js](common/config.js) 提供运行时环境切换，持久化在本地存储（`ShuKeYu_env`），所有端共用：
 
 | 环境 | 地址 |
 |------|------|
 | 本地开发（默认） | `http://127.0.0.1:8080/api`（开发者工具 / 真机同 WiFi 时用局域网 IP） |
-| 线上环境 | `http://42.193.190.232/api`（与 `config.js` 中 `ENVIRONMENTS` 一致；H5 部署态仍强制同源 `/api`） |
+| 线上环境 | `http://XX.XXX.XXX.XXX/api`（与 `config.js` 中 `ENVIRONMENTS` 一致；H5 部署态仍强制同源 `/api`） |
 | 自定义 | 用户自填 URL |
 
 ## 目录结构
@@ -73,8 +73,8 @@ node scripts/gen-tabbar-icons.mjs   # 输出 static/tabbar/*.png 并打印 ASCII
 ├── common/
 │   ├── config.js            # 环境切换（本地 / 线上 / 自定义）
 │   ├── api/                 # 请求层与业务 API
-│   │   ├── request.js       #   统一解包 ApiResponse、token 注入（shukeyu_token）、
-│   │   │                    #   401 时清 token 并广播 shukeyu:unauthorized
+│   │   ├── request.js       #   统一解包 ApiResponse、token 注入（ShuKeYu_token）、
+│   │   │                    #   401 时清 token 并广播 ShuKeYu:unauthorized
 │   │   ├── auth / game / ranking / elo / rotation / tournament
 │   │   ├── court / my / settings / verification
 │   ├── store/               # 模块级 ref 单例（useAuth / 轮排状态）

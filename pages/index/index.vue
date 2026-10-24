@@ -510,7 +510,8 @@ async function onJoin(game) {
           </view>
           <view class="id-mid">
             <view class="name">
-              {{ user ? user.name : '未登录' }}<text class="brand">shukeyu</text>
+              {{ user ? user.name : '未登录' }}
+			  <!--<text class="brand">ShuKeYu</text>-->
             </view>
             <view class="tag">
               {{ user ? '已打 ' + user.gamesPlayed + ' 场' : '点击登录后报名球局' }}

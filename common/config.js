@@ -3,8 +3,8 @@
  * 所有端（H5 / 小程序）共用这一份配置。
  */
 
-const ENV_KEY = 'shukeyu_env'
-const CUSTOM_KEY = 'shukeyu_custom_url'
+const ENV_KEY = 'ShuKeYu_env'
+const CUSTOM_KEY = 'ShuKeYu_custom_url'
 
 /** 预定义环境 */
 const ENVIRONMENTS = [

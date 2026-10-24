@@ -5,7 +5,7 @@
 
 import { getBaseUrl } from '../config'
 
-const TOKEN_KEY = 'shukeyu_token'
+const TOKEN_KEY = 'ShuKeYu_token'
 
 export function getToken() {
   try {
@@ -62,7 +62,7 @@ export function request(path, options = {}) {
           if (payload.code === 401) {
             clearToken()
             if (typeof uni !== 'undefined' && typeof uni.$emit === 'function') {
-              uni.$emit('shukeyu:unauthorized')
+              uni.$emit('ShuKeYu:unauthorized')
             }
           }
           reject(new ApiError(payload.code, payload.message || '请求失败'))
@@ -113,7 +113,7 @@ export function uploadFile(path, filePath, name) {
           if (payload.code === 401) {
             clearToken()
             if (typeof uni !== 'undefined' && typeof uni.$emit === 'function') {
-              uni.$emit('shukeyu:unauthorized')
+              uni.$emit('ShuKeYu:unauthorized')
             }
           }
           reject(new ApiError(payload.code, payload.message || '上传失败'))
