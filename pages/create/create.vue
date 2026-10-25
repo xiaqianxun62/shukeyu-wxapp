@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
-import { createGame, getGame, updateGame, uploadCover, checkTitleAvailable } from '../../common/api/game'
+import { createGame, uploadCover, checkTitleAvailable } from '../../common/api/game'
 import { listCourts } from '../../common/api/court'
 import { LOCATIONS, TIME_SLOTS, toastError, resolveUrl } from '../../common/util'
 import { useAuth } from '../../common/store/auth'
@@ -16,10 +15,6 @@ const MODES = [
   { id: 0, name: '预报名', desc: '定好时间地点，提前约人' },
   { id: 1, name: '现场报名', desc: '只约人数与场地，人齐后现场编排' },
 ]
-
-/** 编辑模式：URL 带 id 时为 true，提交时走 updateGame */
-const isEdit = ref(false)
-const editingId = ref(0)
 
 const form = ref({
   mode: 0,
@@ -51,7 +46,7 @@ function onTitleInput() {
   if (!v) return
   titleCheckTimer = setTimeout(async () => {
     try {
-      const exclude = isEdit.value ? editingId.value : null
+      const exclude = null
       const res = await checkTitleAvailable(v, exclude)
       titleAvailable.value = res.available
     } catch {
@@ -124,7 +119,7 @@ function cancelCustomLocation() {
   }
 }
 
-/** 默认明天（仅在新建时生效；编辑时由 getGame 回填） */
+/** 默认明天 */
 const today = new Date()
 const tomorrow = new Date(today.getTime() + 86400000)
 form.value.playDate = [
@@ -135,32 +130,8 @@ form.value.playDate = [
 form.value.startTime = TIME_SLOTS[0].start.slice(0, 5)
 form.value.endTime = TIME_SLOTS[0].end.slice(0, 5)
 
-/** URL 带 id → 编辑模式：拉详情回填表单 */
-onLoad(async (options) => {
-  const id = Number(options && options.id)
-  if (!id) return
-  try {
-    const g = await getGame(id)
-    isEdit.value = true
-    editingId.value = id
-    uni.setNavigationBarTitle({ title: '编辑球局' })
-    form.value.mode = g.mode ?? 0
-    form.value.title = g.title ?? ''
-    form.value.location = g.location ?? ''
-    form.value.courtId = g.courtId ?? null
-    form.value.playDate = g.playDate ?? form.value.playDate
-    form.value.startTime = (g.startTime || '').slice(0, 5) || form.value.startTime
-    form.value.endTime = (g.endTime || '').slice(0, 5) || form.value.endTime
-    form.value.maxPlayers = g.maxPlayers ?? DEFAULT_MAX
-    form.value.courtCount = g.courtCount ?? 2
-    form.value.cover = g.cover ?? ''
-    form.value.remark = g.remark ?? ''
-    coverPreview.value = g.cover ? resolveUrl(g.cover) : ''
-  } catch (e) {
-    toastError(e, '加载球局失败')
-    setTimeout(() => uni.navigateBack(), 500)
-  }
-})
+// 编辑球局统一走 pages/edit/edit（create 是 tabBar 页，navigateTo 打不开，
+// 这里不再支持 URL 带 id 的隐藏编辑入口，避免死代码误导）
 
 const canSubmit = computed(() => {
   if (!form.value.title) return false
@@ -249,19 +220,13 @@ async function submit() {
     if (form.value.remark && form.value.remark.trim()) payload.remark = form.value.remark.trim()
     // 仅认证用户才能发起"仅认证可见"球局（其他人即使传了也被后端忽略）
     if (user.value?.isVerified && form.value.isVerified) payload.isVerified = true
-    if (isEdit.value) {
-      await updateGame(editingId.value, payload)
-      uni.showToast({ title: '球局已修改', icon: 'success' })
-      setTimeout(() => uni.navigateBack(), 500)
-    } else {
-      await createGame(payload)
-      uni.showToast({ title: isOnsite.value ? '现场局已发起（日期：今天）' : '球局已发布', icon: 'success' })
-      setTimeout(() => {
-        switchTab('/pages/index/index')
-      }, 600)
-    }
+    await createGame(payload)
+    uni.showToast({ title: isOnsite.value ? '现场局已发起（日期：今天）' : '球局已发布', icon: 'success' })
+    setTimeout(() => {
+      switchTab('/pages/index/index')
+    }, 600)
   } catch (e) {
-    toastError(e, isEdit.value ? '修改失败' : '发布失败')
+    toastError(e, '发布失败')
   } finally {
     submitting.value = false
   }
@@ -394,10 +359,10 @@ async function submit() {
       </view>
 
       <button class="submit" type="button" :loading="submitting" @click="submit">
-        {{ isEdit ? '保存修改' : (isLoggedIn ? (isOnsite ? '发起现场局' : '发布球局') : '登录后发布') }}
+        {{ isLoggedIn ? (isOnsite ? '发起现场局' : '发布球局') : '登录后发布' }}
       </button>
       <view class="tip">
-        {{ isEdit ? '仅可修改报名中的球局' : (isOnsite ? '人齐后在详情页选编排方案，打完逐场录比分' : '发布后可在球局详情页邀请球友报名') }}
+        {{ isOnsite ? '人齐后在详情页选编排方案，打完逐场录比分' : '发布后可在球局详情页邀请球友报名' }}
       </view>
     </scroll-view>
 

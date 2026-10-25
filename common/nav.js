@@ -10,6 +10,25 @@
  * 小程序 / App 端条件编译后只剩原生 uni.navigateTo / uni.switchTab。
  */
 
+/**
+ * 跳转失败不再静默：统一 fail 回调（toast + 控制台报错），
+ * 避免再出现「跳 tab 页 / 路径写错 / 栈满」这类点了没反应的隐性 bug。
+ * 调用方自己传了 fail 的话尊其优先。
+ */
+function withFailLog(opts, tag, url) {
+  if (opts && typeof opts.fail === 'function') return opts
+  const fail = (err) => {
+    // eslint-disable-next-line no-console
+    console.error(`[nav] ${tag} 失败:`, url, err)
+    try {
+      uni.showToast({ title: '页面跳转失败', icon: 'none' })
+    } catch (e) {
+      // 极端场景下 showToast 也可能没就绪，忽略
+    }
+  }
+  return { fail, ...(opts || {}) }
+}
+
 export function navigateTo(url, opts = {}) {
   // #ifdef H5
   const app = typeof getApp === 'function' ? getApp() : null
@@ -18,7 +37,7 @@ export function navigateTo(url, opts = {}) {
     return
   }
   // #endif
-  uni.navigateTo({ url, ...opts })
+  uni.navigateTo({ url, ...withFailLog(opts, 'navigateTo', url) })
 }
 
 export function switchTab(url) {
@@ -29,7 +48,7 @@ export function switchTab(url) {
     return
   }
   // #endif
-  uni.switchTab({ url })
+  uni.switchTab({ url, ...withFailLog(null, 'switchTab', url) })
 }
 
 export function navigateBack(delta = 1) {

@@ -28,6 +28,7 @@ TabBar 四项：**球局 / 发布 / 积分榜 / 我的**，图标由 [scripts/ge
 
 ```bash
 node scripts/gen-tabbar-icons.mjs   # 输出 static/tabbar/*.png 并打印 ASCII 预览
+node scripts/check-routes.mjs       # 校验跳转目标都在 pages.json 且未踩 navigateTo/switchTab 限制（exit 1 即有问题）
 ```
 
 ## 快速启动
@@ -50,7 +51,7 @@ node scripts/gen-tabbar-icons.mjs   # 输出 static/tabbar/*.png 并打印 ASCII
 - 开发期 `manifest.json` 的 `h5.devServer.proxy` 把 `/auth` `/games` `/matches` `/ranking` `/rotation` `/elo` `/uploads` 代理到 `http://127.0.0.1:8080`，避免跨域
 - 部署态 H5 强制走同源 `/api`（见 `common/config.js` 的 `getBaseUrl()`，规避混合内容拦截与 nginx 同源代理问题）
 
-前置条件：后端 [../Code](../Code) 已在 `8080` 端口启动。
+前置条件：后端 [Shukeyu](../Shukeyu) 已在 `8080` 端口启动。
 
 ## 环境切换
 
@@ -82,13 +83,13 @@ node scripts/gen-tabbar-icons.mjs   # 输出 static/tabbar/*.png 并打印 ASCII
 ├── components/              # SmartImage（缩略图）/ QqMapView（地图）/ nav-back
 ├── pages/                   # 19 个页面（见上表）
 ├── static/                  # 图片、tabbar 图标、customicons 字体
-├── scripts/gen-tabbar-icons.mjs
+├── scripts/gen-tabbar-icons.mjs / check-routes.mjs
 └── uni_modules/             # uni-ui 组件库（47 个模块）
 ```
 
 ## 样式与主题
 
-- 主题变量定义在 `App.vue` 的 `page {}`：`--primary #14665B`（场地墨绿）、`--accent #E5C84B`（荧光黄）、`--bg #FAF7F0`（暖白），与 PC 官网 [yuyue-vue](../yuyue-vue) 保持一致
+- 主题变量定义在 `App.vue` 的 `page {}`：`--primary #14665B`（场地墨绿）、`--accent #E5C84B`（荧光黄）、`--bg #FAF7F0`（暖白），与 PC 官网 [shukeyu-vue](../shukeyu-vue) 保持一致
 - H5 宽屏（≥768px）下根节点收成 430px 手机壳居中列，保证桌面浏览器视觉与手机一致
 - tabBar 原生图标只认 png，故用脚本生成而非样式覆盖
 
@@ -99,5 +100,5 @@ node scripts/gen-tabbar-icons.mjs   # 输出 static/tabbar/*.png 并打印 ASCII
 
 ## 相关项目
 
-- 后端：[../Code](../Code)（Spring Boot，Swagger UI: `http://localhost:8080/api/swagger-ui.html`）
-- PC 官网 / 管理后台：[../yuyue-vue](../yuyue-vue)（Vue 3 + Vite）
+- 后端：[Shukeyu](../Shukeyu)（Spring Boot，Swagger UI: `http://localhost:8080/api/swagger-ui.html`）
+- PC 官网 / 管理后台：[shukeyu-vue](../shukeyu-vue)（Vue 3 + Vite）
