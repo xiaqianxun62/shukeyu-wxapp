@@ -420,9 +420,9 @@ async function cancelJoin() {
   }
 }
 
-/** 编辑球局：复用 create 页面（URL 带 id = 进入编辑模式） */
+/** 编辑球局：跳转专用编辑页（create 是 tabBar 页，navigateTo 打不开 tab 页） */
 function editGame() {
-  navigateTo(`/pages/create/create?id=${gameId.value}`)
+  navigateTo(`/pages/edit/edit?id=${gameId.value}`)
 }
 
 /** 删除球局：二次确认后软删 + 级联清报名 */
