@@ -729,9 +729,9 @@ function sidePlayers(team, names) {
         <view v-else-if="game.status === 1" class="joined">等待开赛</view>
         <view v-else-if="game.status === 2" class="joined finished">球局已结束</view>
         <view v-else class="joined">已报名</view>
-        <button v-if="canArrange" class="btn ghost" :loading="arranging" @click="pickArrange">
+        <!--<button v-if="canArrange" class="btn ghost" :loading="arranging" @click="pickArrange">
           选择编排方案
-        </button>
+        </button>-->
         <view v-else-if="game.status === 0 && game.registrations.length < 4" class="joined">
           至少 {{ 4 - game.registrations.length }} 人
         </view>
