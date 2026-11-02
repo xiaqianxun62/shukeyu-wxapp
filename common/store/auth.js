@@ -50,7 +50,8 @@ function persist(next) {
         ratingMixed: next.ratingMixed ?? null,
         mixedWin: next.mixedWin ?? null,
         mixedLoss: next.mixedLoss ?? null,
-        isAdmin: next.isAdmin === true,
+        // RBAC 权限码：由后端登录响应下发，各入口据此显隐（后端仍是最终闸门）
+        permissions: Array.isArray(next.permissions) ? next.permissions : [],
       }),
     )
   } else {
@@ -208,7 +209,8 @@ export function useAuth() {
   return {
     user,
     isLoggedIn: computed(() => user.value !== null),
-    isAdmin: computed(() => user.value?.isAdmin === true),
+    /** 是否持有某个权限码（RBAC） */
+    can: (code) => (user.value?.permissions || []).includes(code),
     submitting,
     restored,
     login,

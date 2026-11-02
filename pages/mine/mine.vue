@@ -8,7 +8,7 @@ import { navigateTo } from '../../common/nav'
 import { ENVIRONMENTS, getEnvId, setEnvId, getCustomUrl, setCustomUrl, getCurrentEnv } from '../../common/config'
 import { updateProfile } from '../../common/api/auth'
 
-const { user, isLoggedIn, logout, restore, refreshMe, applyProfile } = useAuth()
+const { user, isLoggedIn, logout, restore, refreshMe, applyProfile, can } = useAuth()
 
 /** 积分榜展示名：0 真实姓名 1 昵称（默认）。只影响自己在榜单上的那一行 */
 const nameDisplay = computed(() => (user.value && user.value.nameDisplay === 0 ? 0 : 1))
@@ -37,8 +37,8 @@ async function setNameDisplay(value) {
 
 const statusBarHeight = uni.getSystemInfoSync().statusBarHeight || 20
 const navbarHeight = statusBarHeight + 44
-/** 仅管理员显示环境切换入口 */
-const isAdmin = computed(() => !!(user.value && user.value.isAdmin === true))
+/** 仅系统管理员显示环境切换入口 */
+const isAdmin = computed(() => can('log:view'))
 const currentEnv = ref(getCurrentEnv())
 const envPickerVisible = ref(false)
 const customUrlInput = ref(getCustomUrl())

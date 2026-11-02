@@ -11,7 +11,7 @@ import { useAuth } from '../../common/store/auth'
 import { navigateTo } from '../../common/nav'
 import NavBack from '../../components/nav-back/nav-back.vue'
 
-const { isLoggedIn, user } = useAuth()
+const { isLoggedIn, user, can } = useAuth()
 
 const gameId = ref(0)
 const game = ref(null)
@@ -48,9 +48,9 @@ const showOverview = computed(
   () => activeTab.value === '报名名单' || activeTab.value === '轮排安排',
 )
 /** 现场报名球局：没有时间地点，人齐后现场编排开打 */
-/** 只有发起人能拍板编排方案（管理员例外） */
+/** 只有发起人能拍板编排方案（持 game:manage 的干事以上例外） */
 const canManage = computed(
-  () => !!(game.value && user.value && (game.value.creatorId === user.value.userId || user.value.isAdmin)),
+  () => !!(game.value && user.value && (game.value.creatorId === user.value.userId || can('game:manage'))),
 )
 
 const isOnsite = computed(() => !!game.value && game.value.mode === 1)

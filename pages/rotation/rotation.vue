@@ -74,11 +74,11 @@ const balance = ref(true)
 const result = ref(null)
 const loading = ref(false)
 
-const { isLoggedIn, user } = useAuth()
-/** 真实球局模式：发起人能生成轮排表（管理员有全部权限，后端同样校验） */
+const { isLoggedIn, user, can } = useAuth()
+/** 真实球局模式：发起人能生成轮排表（持 game:manage 的干事以上有全部权限，后端同样校验） */
 const isGameCreator = computed(
   () => !!selectedGame.value && !!user.value
-    && (selectedGame.value.creatorId === user.value.userId || !!user.value.isAdmin),
+    && (selectedGame.value.creatorId === user.value.userId || can('game:manage')),
 )
 
 /** 现场计分弹层 */
