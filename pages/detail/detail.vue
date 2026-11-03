@@ -732,7 +732,7 @@ function sidePlayers(team, names) {
         <!--<button v-if="canArrange" class="btn ghost" :loading="arranging" @click="pickArrange">
           选择编排方案
         </button>-->
-        <view v-else-if="game.status === 0 && game.registrations.length < 4" class="joined">
+        <view v-if="game.status === 0 && game.registrations.length < 4" class="joined">
           至少 {{ 4 - game.registrations.length }} 人
         </view>
         <view v-else-if="game.status === 0 && isFull" class="joined">已满员，等待发起人</view>

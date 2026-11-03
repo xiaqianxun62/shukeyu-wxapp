@@ -88,6 +88,7 @@ function maybeShowNotice(data) {
     }
     if (saved === key) return
   }
+  resetNoticeImg()
   notice.value = { visible: true, cfg: data }
 }
 
@@ -114,12 +115,70 @@ function noticeColor(field, fallback) {
   return (c && c[field]) || fallback
 }
 
+/** 取配置字号 px，空则回退默认字号 */
+function noticeSize(field, fallback) {
+  const c = notice.value.cfg
+  const v = c && c[field] ? parseInt(c[field], 10) : NaN
+  return isNaN(v) ? fallback : v
+}
+
 /** 公告配图点击放大预览（previewImage 需要完整 URL） */
 function previewNoticeMedia() {
   const c = notice.value.cfg
   if (c && c.mediaUrl) {
     uni.previewImage({ urls: [resolveUrl(c.mediaUrl)] })
   }
+}
+
+/**
+ * 公告配图：缩略图 + 静默预加载高清（对齐官网 SmartImage 组件）。
+ *   1. 先展示后端生成的 _thumb.jpg 缩略图
+ *   2. 缩略图加载完成后，后台静默预加载原图，完成后无感替换
+ *   3. 缩略图 404（历史公告未生成缩略图）→ 降级显示原图
+ * 缩略图不存在的 GIF 动图（后端不压缩）直接走原图。
+ */
+const noticeImgSrc = ref('')
+let noticeHdPreloading = false
+
+function resetNoticeImg() {
+  noticeImgSrc.value = ''
+  noticeHdPreloading = false
+}
+
+function noticeMediaSrc() {
+  const c = notice.value.cfg
+  if (!c || !c.mediaUrl) return ''
+  if (noticeImgSrc.value) return noticeImgSrc.value
+  noticeImgSrc.value = resolveUrl(thumbUrl(c.mediaUrl))
+  return noticeImgSrc.value
+}
+
+/** 缩略图加载失败 → 降级到原图 */
+function onNoticeMediaError() {
+  const c = notice.value.cfg
+  if (!c || !c.mediaUrl) return
+  const full = resolveUrl(c.mediaUrl)
+  if (noticeImgSrc.value !== full) noticeImgSrc.value = full
+}
+
+/** 缩略图加载完成 → 静默预加载高清原图，完成后无感替换 */
+function onNoticeMediaLoad() {
+  const c = notice.value.cfg
+  if (!c || !c.mediaUrl || noticeHdPreloading) return
+  const full = resolveUrl(c.mediaUrl)
+  // 已经是原图（GIF 或降级后）就不用再预载
+  if (noticeImgSrc.value === full) return
+  noticeHdPreloading = true
+  uni.getImageInfo({
+    src: full,
+    success: () => {
+      // 同一张公告才替换，避免用户已关闭弹窗后还切图
+      if (notice.value.cfg && notice.value.cfg.mediaUrl === c.mediaUrl) {
+        noticeImgSrc.value = full
+      }
+    },
+    fail: () => { /* 高清图加载不上，保留缩略图兜底 */ },
+  })
 }
 
 /** 自定义顶栏的实际占位高度：状态栏 + 16 上边距 + 34 标题行 + 14 下边距 */
@@ -738,18 +797,27 @@ async function onJoin(game) {
         <view class="notice-close" @click.stop="dismissNotice">
           <text>✕</text>
         </view>
-        <text class="notice-title" :style="{ color: noticeColor('titleColor', '#22312a') }">
+        <text
+          class="notice-title"
+          :style="{ color: noticeColor('titleColor', '#22312a'), fontSize: noticeSize('titleSize', 20) + 'px' }"
+        >
           {{ (notice.cfg.title || '').trim() || '公告' }}
         </text>
-        <view class="notice-content" :style="{ color: noticeColor('contentColor', '#7c837d') }">
+        <view
+          class="notice-content"
+          :style="{ color: noticeColor('contentColor', '#7c837d'), fontSize: noticeSize('contentSize', 15) + 'px' }"
+        >
           <text class="notice-text">{{ notice.cfg.content }}</text>
-          <!-- 配图：点击可放大预览 -->
+          <!-- 配图：缩略图优先 + 静默预加载高清，点击可放大预览 -->
           <image
             v-if="notice.cfg.mediaType === 'image' && notice.cfg.mediaUrl"
             class="notice-media"
-            :src="resolveUrl(notice.cfg.mediaUrl)"
+            :src="noticeMediaSrc()"
             mode="widthFix"
+            lazy-load
             @click="previewNoticeMedia"
+            @load="onNoticeMediaLoad"
+            @error="onNoticeMediaError"
           />
           <!-- 配视频：原生播放器，带控制条 -->
           <video
@@ -766,7 +834,7 @@ async function onJoin(game) {
           hover-stay-time="120"
           @click.stop="dismissNotice"
         >
-          <text :style="{ color: noticeColor('btnTextColor', '#f3f0e4') }">我知道了</text>
+          <text :style="{ color: noticeColor('btnTextColor', '#f3f0e4'), fontSize: noticeSize('btnSize', 15) + 'px' }">我知道了</text>
         </view>
       </view>
     </view>

@@ -14,3 +14,8 @@ export function getHomePoem() {
 export function getHomeNotice() {
   return request('/settings/home-notice')
 }
+
+/** 全站页脚文案（小程序 FooterSection & PC 官网底部共用） */
+export function getFooter() {
+  return request('/settings/footer')
+}
