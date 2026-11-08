@@ -49,6 +49,14 @@ export function updateProfile(payload) {
   return request('/auth/profile', { method: 'POST', body: payload })
 }
 
+/**
+ * 修改 / 设置登录密码：成功返回带新 token 的用户信息（其他设备会被踢下线）
+ * @param {{ oldPassword?: string, newPassword: string }} payload
+ */
+export function changePassword(payload) {
+  return request('/auth/password', { method: 'PUT', body: payload })
+}
+
 export function fetchMe() {
   return request('/auth/me')
 }

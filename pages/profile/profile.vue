@@ -1,13 +1,13 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { updateProfile, uploadAvatar } from '../../common/api/auth'
+import { changePassword, updateProfile, uploadAvatar } from '../../common/api/auth'
 import { resolveUrl, toastError } from '../../common/util'
 import { navigateTo } from '../../common/nav'
 import { useAuth } from '../../common/store/auth'
 import NavBack from '../../components/nav-back/nav-back.vue'
 
-const { user, isLoggedIn, applyProfile, restore, refreshMe } = useAuth()
+const { user, isLoggedIn, applyProfile, restore, refreshMe, changePassword: submitPassword } = useAuth()
 
 const form = ref({
   name: '',
@@ -17,6 +17,45 @@ const form = ref({
   avatar: '',
 })
 const saving = ref(false)
+
+/* ---------- 修改密码（与资料保存分开提交，互不影响） ---------- */
+const pwdOld = ref('')
+const pwdNew = ref('')
+const pwdConfirm = ref('')
+const changingPassword = ref(false)
+/** 已设置过密码；undefined 视为已设置，避免旧缓存漏填原密码被后端拒绝 */
+const hasPassword = computed(() => user.value?.hasPassword !== false)
+
+async function changePwd() {
+  if (hasPassword.value && !pwdOld.value) {
+    uni.showToast({ title: '请填写原密码', icon: 'none' })
+    return
+  }
+  const next = pwdNew.value
+  if (next.length < 6 || next.length > 64) {
+    uni.showToast({ title: '新密码需 6-64 位', icon: 'none' })
+    return
+  }
+  if (next !== pwdConfirm.value) {
+    uni.showToast({ title: '两次输入不一致', icon: 'none' })
+    return
+  }
+  changingPassword.value = true
+  try {
+    await submitPassword({
+      oldPassword: hasPassword.value ? pwdOld.value : undefined,
+      newPassword: next,
+    })
+    uni.showToast({ title: hasPassword.value ? '密码已修改' : '密码已设置', icon: 'success' })
+    pwdOld.value = ''
+    pwdNew.value = ''
+    pwdConfirm.value = ''
+  } catch (e) {
+    toastError(e, '修改失败')
+  } finally {
+    changingPassword.value = false
+  }
+}
 const uploadingAvatar = ref(false)
 
 /** 用最新的 /auth/me 回填，避免本地缓存和库里不一致 */
@@ -203,6 +242,36 @@ function goLogin() {
       </view>
 
       <button class="save-btn" type="button" :loading="saving" @click="save">保存</button>
+
+      <view class="pwd-block">
+        <text class="pwd-title">{{ hasPassword ? '修改密码' : '设置登录密码' }}</text>
+        <text class="hint">
+          {{
+            hasPassword
+              ? '改密后其他设备会立即退出登录，本机自动续上'
+              : '设置后可用「账号 + 密码」登录，微信登录不受影响'
+          }}
+        </text>
+
+        <view v-if="hasPassword" class="field pwd-field">
+          <text class="label">原密码</text>
+          <uni-easyinput v-model="pwdOld" type="password" placeholder="当前登录密码" />
+        </view>
+
+        <view class="field pwd-field">
+          <text class="label">新密码</text>
+          <uni-easyinput v-model="pwdNew" type="password" placeholder="6-64 位" />
+        </view>
+
+        <view class="field pwd-field">
+          <text class="label">确认新密码</text>
+          <uni-easyinput v-model="pwdConfirm" type="password" placeholder="再输入一次" />
+        </view>
+
+        <button class="pwd-btn" type="button" :loading="changingPassword" @click="changePwd">
+          {{ hasPassword ? '修改密码' : '设置密码' }}
+        </button>
+      </view>
     </view>
 
     <view v-else class="guest">
@@ -322,6 +391,33 @@ function goLogin() {
   border-radius: 10px;
   background: #14665b;
   color: #faf7f0;
+  font-size: 15px;
+  font-weight: 700;
+}
+/* 修改密码：与资料保存分区，避免两个提交按钮混淆 */
+.pwd-block {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed #e3e8e6;
+}
+.pwd-title {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1a2e2a;
+}
+.pwd-field {
+  margin-top: 12px;
+}
+.pwd-btn {
+  margin-top: 4px;
+  height: 42px;
+  line-height: 42px;
+  border: 1px solid #14665b;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #14665b;
   font-size: 15px;
   font-weight: 700;
 }

@@ -38,6 +38,8 @@ function persist(next) {
         avatar: next.avatar || '',
         gender: next.gender,
         account: next.account || '',
+        // 是否已设置登录密码：个人页据此显示「设置密码」还是「修改密码」
+        hasPassword: next.hasPassword === true,
         rating: next.rating,
         gamesPlayed: next.gamesPlayed,
         // 分类 ELO：单打 / 双打 / 混双
@@ -138,6 +140,16 @@ async function loginWithWechat(nickName) {
   }
 }
 
+/** 修改密码：后端会换发新 token，这里同步替换本地凭证（其他设备旧会话已被踢掉） */
+async function changePassword(payload) {
+  submitting.value = true
+  try {
+    return accept(await authApi.changePassword(payload))
+  } finally {
+    submitting.value = false
+  }
+}
+
 /** 完善资料后同步本地缓存 */
 function applyProfile(profile) {
   if (user.value) {
@@ -217,6 +229,7 @@ export function useAuth() {
     register,
     loginWithWechat,
     applyProfile,
+    changePassword,
     logout,
     restore,
     refreshMe,
